@@ -27,6 +27,7 @@ The design specifies the failure state as collective: *"they all die or are all 
 - The design says quota failure ends the run. It does **not** say what happens when every intern dies inside a location with days still remaining.
 - Two defensible answers: the run continues (they lost the day's unbanked loot and a day of the deadline, which is punishment enough), or the run ends immediately.
 - The first preserves the quota as the single failure condition and makes bad rounds recoverable; the second makes every round lethal. **Pick one and record it** — leaving this implicit will produce inconsistent behavior between the Day Cycle Controller and this component.
+- Whichever is chosen, it must be keyed on the Crew Roster's *dead* count, not on "nobody is in the field" ([`19_crew_roster.md`](19_crew_roster.md)). A round that ends because everyone disconnected is not a crew wipe, and treating it as one would let a network outage end a run — the exact failure [`24_mid_round_disconnect_handling.md`](24_mid_round_disconnect_handling.md) exists to prevent.
 
 **Build the ending**
 
@@ -51,6 +52,7 @@ The design specifies the failure state as collective: *"they all die or are all 
 - [ ] Evaluation happens after final settlement, verified by log ordering — never on a stale total.
 - [ ] Meeting quota raises the next quota, resets cycle progress, and returns the crew to the hub with credits intact.
 - [ ] The chosen total-crew-death rule is implemented, documented, and consistent between the Day Cycle Controller and this component.
+- [ ] A round ending because every player disconnected never triggers the crew-wipe rule.
 - [ ] Every client sees the same outcome and the same ending screen, including a client under simulated latency.
 - [ ] The run summary reports accurate days survived, total earned, quotas completed, and deaths.
 - [ ] Player input is disabled during the ending sequence.

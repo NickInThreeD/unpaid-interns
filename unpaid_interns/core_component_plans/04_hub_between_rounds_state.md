@@ -30,13 +30,15 @@ The blocking problem is that **the project has no concept of this state at all.*
 **Make it authoritative and shared**
 
 - Hub transitions are server-driven: the server decides when the crew returns to the hub and when they deploy. Clients follow.
-- The departure control must be a single shared action, not per-player — one intern pulling the lever commits everyone. Decide whether it requires consensus and document it.
-- Replicate the selected destination so everyone sees where they are about to go before it happens.
+- The departure control must be a single shared action, not per-player — one intern pulling the lever commits everyone. Decide whether it requires consensus and document it. Keep it consistent with the destination-change rule in [`27_location_selection_assignment.md`](27_location_selection_assignment.md): selection is cheap and reversible, deploy is deliberate and shared.
+- Replicate the selected destination so everyone sees where they are about to go before it happens — as a location id on the Run Manager, per [`26_location_catalogue.md`](26_location_catalogue.md).
+- Deploy is also where the round seed is rolled ([`29_deterministic_generation_seed.md`](29_deterministic_generation_seed.md)); it must be replicated before the load begins, not during it.
 
 **Guarantee safety**
 
-- Assert that no monster spawning, no round clock, and no damage sources are active in the hub. Bugs here are especially damaging because players correctly treat the hub as safe and stop paying attention.
+- Assert that no monster spawning, no round clock, and no damage sources are active in the hub. Bugs here are especially damaging because players correctly treat the hub as safe and stop paying attention. Friendly fire is disabled here too, per [`18_pvp_collision_and_friendly_fire.md`](18_pvp_collision_and_friendly_fire.md).
 - Ensure round state from the previous location is fully torn down on entering the hub — leftover monsters or timers are the most likely failure mode.
+- Returning to the hub is where per-round crew state resets: dead players become playable again ([`14_death_and_body_system.md`](14_death_and_body_system.md)), spectators return to normal characters ([`22_spectator_mode.md`](22_spectator_mode.md)), and the roster's per-round fields clear while per-run fields persist ([`19_crew_roster.md`](19_crew_roster.md)). Do this in one place, on the hub transition, rather than letting each system pick its own moment.
 
 ## Acceptance Criteria
 
@@ -50,3 +52,6 @@ The blocking problem is that **the project has no concept of this state at all.*
 - [ ] Two full round-to-hub-to-round cycles run with no leaked entities, timers, or monsters.
 - [ ] A client joining while the crew is in the hub arrives in the hub with correct state.
 - [ ] Hub UI is hidden during a round, and field HUD is hidden in the hub.
+- [ ] The selected destination and round seed are replicated and identical on every client before deploy begins.
+- [ ] Entering the hub resets dead players, spectators, and per-round roster state in one place, and a crew that lost members last round is whole again.
+- [ ] No damage of any kind, including friendly fire, can be dealt in the hub.

@@ -25,6 +25,9 @@ The hard part is not loading a scene. It is that **ECS subscenes must finish bak
 **Add a load barrier**
 
 - The server must not start the round until every connected client reports its location fully loaded. Add an explicit ready handshake — clients send an RPC on completion, the server counts them, and only then advances the Day Cycle Controller out of `Deploying`.
+- **Procedural generation happens inside this barrier.** Once [`28_procedural_interior_generator.md`](28_procedural_interior_generator.md) lands, "loaded" means subscenes baked *and* the interior assembled from the round seed — a client that reports ready before generating will be standing in an empty shell. Extend the ready condition rather than adding a second barrier.
+- The round seed and location id must already be replicated when the barrier opens ([`29_deterministic_generation_seed.md`](29_deterministic_generation_seed.md)); a client that begins generating before the seed arrives builds a different building, and the symptom is physics weirdness rather than a clean error. Gate generation on having the seed, and treat a missing seed as a load failure.
+- The barrier means **the slowest machine sets the deploy time for everyone**. Budget generation cost accordingly and show progress, or a long generation reads as a hang.
 - Follow the RPC pattern already in use: `IRpcCommand` structs with `GhostGameObject.BroadcastRPC` and `ConsumeRPC`, as in `GameLeaderboard.cs`.
 - Handle the client that never reports — a timeout with a clear failure path, not an indefinite hang.
 
@@ -54,3 +57,6 @@ The hard part is not loading a scene. It is that **ECS subscenes must finish bak
 - [ ] All location scenes and subscenes are present in `EditorBuildSettings` and in every build profile.
 - [ ] The flow works in a **standalone build**, not only in the Editor — this is where missing subscene registration surfaces.
 - [ ] A dedicated server build loads and unloads locations correctly with no client attached.
+- [ ] A client cannot report ready before it has both the round seed and a fully generated interior.
+- [ ] A client that never receives the seed triggers the load-failure path rather than generating a mismatched layout.
+- [ ] Loading progress is visible throughout generation, so a slow machine reads as slow rather than hung.

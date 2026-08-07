@@ -26,6 +26,7 @@ Death must be permanent for the round, drop what was carried, leave a recoverabl
 **Drop the inventory**
 
 - Spawn every carried item as a world item ghost at the death position with a small scatter, so a pile is recoverable rather than interpenetrating.
+- Release every item claim held by the dying player, per [`20_networked_interaction_authority.md`](20_networked_interaction_authority.md). An item still claimed by a dead player's `NetworkId` is unpickable by anyone and looks exactly like a lost item.
 - Decide whether any category is destroyed rather than dropped. A "your body was consumed" case for certain monsters creates memorable, feared encounters — but define it explicitly rather than letting it emerge from a bug.
 - Items must be recoverable by teammates immediately, with no ownership lock.
 
@@ -43,9 +44,10 @@ Death must be permanent for the round, drop what was carried, leave a recoverabl
 
 **Move the player to spectating**
 
-- Transition the client to spectator on death rather than leaving a black screen. `Assets/Scripts/Gameplay/UI/RespawnScreen.cs` exists for the old flow and will need repurposing or replacing.
-- Update the Crew Roster so `Dead` is distinct from `Disconnected` and `Extracted`, and so the Day Cycle Controller's total-crew-loss check reads it correctly.
-- Restore all dead players to alive at the start of the next round — death is permanent for the round, not for the run.
+- Transition the client to spectator on death rather than leaving a black screen. The full treatment — camera ownership, the `AudioListener` problem, follow versus free cam, and repurposing `RespawnScreen.cs` — is [`22_spectator_mode.md`](22_spectator_mode.md). Build it before or alongside this component; permanent death without spectating is eight minutes of nothing for the player who died.
+- Update the Crew Roster so `Dead` is distinct from `Disconnected` and `Extracted` ([`19_crew_roster.md`](19_crew_roster.md)), and so the Day Cycle Controller's total-crew-loss check reads it correctly.
+- Restore all dead players to alive at the start of the next round — death is permanent for the round, not for the run. That reset happens on the hub transition ([`04_hub_between_rounds_state.md`](04_hub_between_rounds_state.md)), in one place with the other per-round resets.
+- Destroy the player character entity rather than keeping it inert. A live-but-disabled character still collides, still replicates, and monsters will still target it.
 
 ## Acceptance Criteria
 
@@ -62,3 +64,6 @@ Death must be permanent for the round, drop what was carried, leave a recoverabl
 - [ ] `PendingRespawn` is either removed or its remaining purpose is documented.
 - [ ] Two players dying simultaneously produces two bodies and two correct item drops with no roster corruption.
 - [ ] Dying while holding a two-handed item behaves correctly.
+- [ ] Every item claim held by the dying player is released, and all dropped items are immediately claimable by anyone.
+- [ ] The dead player's character entity is destroyed; it does not collide, replicate, or attract monster targeting.
+- [ ] Dying while climbing detaches cleanly and drops items at the correct position.

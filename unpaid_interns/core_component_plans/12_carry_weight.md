@@ -32,7 +32,8 @@ It is a small component that depends on two larger ones. It cannot be finished b
 **Keep it predicted**
 
 - Weight affects movement speed, which is predicted. The value must be identical on client and server at the same tick, or every pickup will cause a correction.
-- Because weight changes only on inventory events, and those are server-authoritative, ensure the client's predicted pickup updates weight at the same tick the server does.
+- Because weight changes only on inventory events, and those are server-authoritative, ensure the client's predicted pickup updates weight at the same tick the server does. [`20_networked_interaction_authority.md`](20_networked_interaction_authority.md) is where that tick alignment is actually enforced — a pickup predicted on one tick and granted on another produces a movement correction on every single pickup, which is the most frequent action in the game.
+- A *contested* pickup that the client loses must roll the weight change back as cleanly as it applied it. Test this specifically; it is the case that will be missed.
 
 **Surface it**
 

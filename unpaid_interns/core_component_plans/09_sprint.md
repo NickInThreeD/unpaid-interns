@@ -3,7 +3,7 @@
 **Source:** [`core_components.md`](../core_components.md) §2 — Player Character
 **Status:** ⚠️ Constants exist, never applied · **[MVP]**
 **Depends on:** nothing
-**Blocks:** Stamina, Carry Weight, noise emission, monster perception
+**Blocks:** Stamina, Carry Weight, noise emission, monster perception, every later input verb
 
 ## Summary
 
@@ -22,6 +22,33 @@ This plan is the first to add a new input verb, so it also establishes the input
 - Wire it in `ClientInputReaderSystem.ProcessGameplayInput`: `playerInput.SetFlag(PlayerInput.InputFlag.Sprint, controls.Player.Sprint.IsPressed());`. The `Sprint` action **already exists** in the generated `InputSystem_Actions` — it has simply never been read.
 - Use `IsPressed()`, not `triggered` — sprint is a held state, unlike Jump and Reload.
 - `InputFlags` is part of the replicated command stream, so no serialization change is needed for the flag itself.
+
+**Reserve the bits — this file is the registry**
+
+Several later components add verbs, and a silently duplicated bit produces two verbs that fire together with no compile error. Claim bits here and keep this table current:
+
+| Bit | Flag | Component |
+| --- | --- | --- |
+| `1 << 0` | `Jump` | exists |
+| `1 << 1` | `Shoot` | exists |
+| `1 << 2` | `Sprint` | this component |
+| `1 << 3` | `Reload` | exists |
+| `1 << 4` | `Crouch` | [`10_crouch.md`](10_crouch.md) |
+| `1 << 5` | `Interact` | Interaction System (§5) |
+| `1 << 6` | `Drop` | Inventory (§5) |
+| `1 << 7` | `Scan` | [`16_player_scanner_ping_tool.md`](16_player_scanner_ping_tool.md) |
+
+**Understand how the input stream accumulates — every later verb depends on this**
+
+The pipeline is **OR-accumulating and biased toward "on"**, and nothing in the code says so. `PlayerInput.UpdateFrom` is `InputFlags |= input.InputFlags` — it sets bits and never clears them. `ClientInputSenderSystem` uses that in two places: on a new tick it does `SetFrom(current)` then `UpdateFrom(inProgressCommandInput)` to fold in flags raised during intervening client frames, and within an already-sent tick it does `existingCommandData.UpdateFrom(current)` to refresh the tick's data.
+
+Three consequences that shape every verb built on this:
+
+- **A held flag releases up to one tick late.** Within a tick, a bit can turn on but never off. Sprint stopping one tick after the key is released is acceptable; a verb where a single extra tick matters is not, and must be designed around it.
+- **A flag raised in any client frame belonging to a tick applies to the whole tick.** A key tapped and released between two ticks still registers. This is what makes `triggered` work for Jump and Reload, and it is deliberate.
+- **Predicted input is replayed.** `PlayerPredictionSystem` re-simulates buffered ticks during reconciliation, so a tick's flags are processed *more than once* on the client. Anything with a side effect beyond movement — interact, drop, scan, a crouch toggle — must therefore be **idempotent per tick**, keyed on the tick it happened, not "do the thing when the flag is set". The existing code already solves this shape with server-authoritative tick stamps (`LastShotTick`, `LastJumpTick`, `LastReloadTick`) compared against a locally cached tick in `HandleAnimationEvents`; reuse that approach rather than inventing a new one.
+
+Sprint itself is immune to all three — it is a continuous state read fresh each tick with no side effect. That is exactly why it is the right verb to establish the pattern with, and why the components that follow must not assume their verb is as forgiving.
 
 **Apply the constants**
 
@@ -49,3 +76,5 @@ This plan is the first to add a new input verb, so it also establishes the input
 - [ ] Third-person animation on remote clients reflects sprinting, not just local first-person speed.
 - [ ] Sprint speed is tunable from the controller's serialized constants without a code change.
 - [ ] Two clients sprinting simultaneously show correct speed for each other.
+- [ ] Releasing sprint stops the speed increase within one tick and never leaves the flag latched across ticks.
+- [ ] The bit-allocation table in this file matches `PlayerInput.InputFlag` and contains no duplicate bits.

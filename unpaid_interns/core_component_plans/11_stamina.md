@@ -33,6 +33,8 @@ It must be **client-predicted**. Stamina gates sprint, sprint is predicted, so s
 
 - Below a low threshold, block sprinting and jumping entirely.
 - Require recovery to a **higher** threshold before sprinting is allowed again. Without this hysteresis, a player at the boundary will flicker in and out of sprint every frame.
+- Derive the exhaustion decision from the stamina value alone, never from a stored "was exhausted last frame" flag. The prediction loop replays ticks during reconciliation (see [`09_sprint.md`](09_sprint.md)), and a flag carried across replays will disagree with the server exactly at the threshold — which is the one moment the player is paying attention.
+- Injury also blocks sprinting, independently of stamina ([`13_health_and_injury.md`](13_health_and_injury.md)). Resolve both gates in one place so an injured player at full stamina and an exhausted healthy player take the same code path to "you may not sprint".
 - Consider a visible and audible exhaustion cue — laboured breathing doubles as a noise source monsters can hear, which turns exhaustion into a compounding risk rather than a flat speed penalty.
 
 **Connect it to the world**

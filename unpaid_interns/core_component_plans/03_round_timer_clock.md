@@ -18,14 +18,14 @@ The clock must be driven by `NetworkTick`, not `Time.deltaTime`. Netcode for Ent
 **Derive time from the network tick**
 
 - Add `Assets/Scripts/Gameplay/Run/RoundClock.cs`. It can live on the Day Cycle Controller ghost rather than needing its own — it is a small amount of state and the two are always read together.
-- Replicate only `RoundStartTick` as a `[GhostField]`. Every other value is derived, which keeps bandwidth at a single value regardless of how often the clock is read.
+- Replicate only `RoundStartTick` as a `[GhostField]`. Every other value is derived, which keeps bandwidth at a single value regardless of how often the clock is read. This replicate-one-value-and-derive-the-rest approach is the model [`23_shared_session_state_sync.md`](23_shared_session_state_sync.md) asks every shared-state system to follow; `RoundStartTick` belongs on that file's inventory list.
 - Compute elapsed time as `(currentTick - roundStartTick) * tickInterval`, reading the tick rate from the netcode configuration rather than hardcoding it.
 - Expose `NormalizedTime` as `clamp(elapsed / dayLength, 0, 1)` and a `DisplayTime` that maps normalized time onto the in-fiction workday range.
 
 **Make it configurable**
 
 - Put `DayLengthSeconds` and the in-fiction start and end hours in a ScriptableObject config asset, following the `WeaponData` pattern in `Assets/Data/Weapons/`. Day length is the single most-tuned number in the game and must not require a recompile.
-- Allow the day length to be overridden per location, so harder destinations can run shorter or longer days.
+- Allow the day length to be overridden per location, so harder destinations can run shorter or longer days. The override field lives on `LocationData` ([`26_location_catalogue.md`](26_location_catalogue.md)), which resolves from the replicated location id — so the clock must read it *after* the destination is known, not at manager spawn.
 
 **Expose phase boundaries**
 

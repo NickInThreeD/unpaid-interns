@@ -17,8 +17,10 @@ That last point is the one that matters most. Crouch is only worth building if s
 
 **Add the input**
 
-- Follow the input-flag pattern documented in [`09_sprint.md`](09_sprint.md): add `Crouch` to `PlayerInput.InputFlag`, add the accessor, and read `controls.Player.Crouch` in `ClientInputReaderSystem.ProcessGameplayInput`. The `Crouch` action already exists in `InputSystem_Actions`.
+- Follow the input-flag pattern documented in [`09_sprint.md`](09_sprint.md): add `Crouch` to `PlayerInput.InputFlag` at the bit reserved for it in that file's allocation table, add the accessor, and read `controls.Player.Crouch` in `ClientInputReaderSystem.ProcessGameplayInput`. The `Crouch` action already exists in `InputSystem_Actions`.
 - Decide hold-to-crouch versus toggle. Toggle is kinder during long stealth sequences and is the better default for a game where crouching may be sustained for minutes; offer both in settings if possible.
+- **If toggle is chosen, do not implement it as "flip a bool when the flag is set".** As documented in [`09_sprint.md`](09_sprint.md), the prediction system replays buffered ticks during reconciliation, so a naive toggle flips several times for one keypress and the player ends up crouched or standing at random. Store the crouch *state* on the predicted ghost and derive it from the tick the press occurred on, so replaying the same tick produces the same result. Hold-to-crouch has none of this problem, which is a legitimate argument for it.
+- Whichever is chosen, the release-lags-one-tick behaviour of the input stream applies. Standing up one tick late is harmless; make sure nothing (headroom check, visibility value) assumes the transition is instantaneous.
 
 **Add the movement state**
 
@@ -58,3 +60,5 @@ That last point is the one that matters most. Crouch is only worth building if s
 - [ ] Camera height transitions smoothly in both directions.
 - [ ] Crouched movement produces reduced noise in the noise system, not merely quieter audio playback.
 - [ ] Crouch state predicts correctly with no position correction under simulated latency.
+- [ ] If toggle is used, one keypress produces exactly one state change even when the tick is replayed during reconciliation.
+- [ ] The visibility value consumed by monster perception is derived from the same crouch state the server holds, not from a client-local flag.

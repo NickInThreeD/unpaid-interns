@@ -9,7 +9,9 @@
 
 Saving a contract so it survives quitting, and restoring it on return. Without it a run only exists while the session is live, which caps the game at whatever players finish in one sitting — a hard ceiling on a design built around escalating multi-day quotas.
 
-What persists is the Run Manager's state (day, credits, quota, quotas completed), purchased gear and upgrades, hub storage contents, unlocked locations, and player settings. What does **not** persist is anything mid-round: a run is saved in the hub, between deployments, never inside a location.
+What persists is the Run Manager's state (day, credits, quota, quotas completed), the **run seed** ([`29_deterministic_generation_seed.md`](29_deterministic_generation_seed.md)), the crew roster's per-run fields — stable player ids, names, deaths this run ([`19_crew_roster.md`](19_crew_roster.md)) — purchased gear and upgrades, hub storage contents, unlocked locations, and player settings. What does **not** persist is anything mid-round: a run is saved in the hub, between deployments, never inside a location.
+
+Saving the run seed is what makes a whole contract reproducible: reload a save, play the same day, get the same building. That is worth the four bytes on its own for bug reports, and it also stops a save-scumming player from rerolling a bad layout by reloading.
 
 That restriction is deliberate. Allowing mid-round saves would let players quit to escape a bad situation and reload, which destroys the extraction tension the entire game rests on. The save point *is* the hub.
 
@@ -62,6 +64,8 @@ Unpaid Interns is server-authoritative co-op. These do not automatically fit tog
 
 - [ ] EventBus and SaveSystem are present in this project, compile cleanly, and the acquisition method (submodule / embedded / copy) is documented.
 - [ ] A run saved in the hub restores with identical day, credits, quota, quotas completed, purchased gear, and stored loot.
+- [ ] The run seed and unlocked locations persist and restore; replaying a restored day reproduces the same layout.
+- [ ] Crew roster per-run state — stable ids, names, deaths this run — survives a save and reload.
 - [ ] Restoring writes into the Run Manager on the server before clients connect, and clients receive the restored values, not defaults.
 - [ ] The save bridge is instantiated only on the host; a pure client creates no run file.
 - [ ] No save occurs during an active round, verified by quitting mid-round and confirming the run resumes from the last hub state.

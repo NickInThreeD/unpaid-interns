@@ -33,6 +33,13 @@ That lasting consequence is what makes a near-miss meaningful. A player who esca
 - Add drowning and instant-death volumes as separate simple damage sources.
 - Route everything through one server-side damage entry point so injury rules, penalties, and death handling exist in exactly one place.
 
+**Consolidate the existing damage writes first**
+
+- There is no single entry point today. `Assets/Scripts/Gameplay/Player/Projectile/Projectile.cs` writes `CurrentHealth`, `ControllerState.IsHit`, `LastDamageAmount`, and `LastHitTick` directly in **two separate branches** — the area-of-effect path and the direct-damage path — and each one also calls `LeaderboardManager.AddKill` on a lethal hit. Adding monster damage as a third such site, and fall damage as a fourth, is how the injury rules end up applied inconsistently.
+- Build `ApplyDamage(target, amount, source)` on the server, move both projectile branches onto it, and make every future source use it: monsters, falls, drowning, hazards.
+- The `source` argument is not decoration. [`18_pvp_collision_and_friendly_fire.md`](18_pvp_collision_and_friendly_fire.md) needs it to classify teammate damage and apply the friendly-fire multiplier — which is currently impossible, because the projectile code damages any player who is not the shooter with no policy check at all.
+- Remove the `AddKill` call while consolidating. Kill scoring is deathmatch semantics; §8 repurposes that plumbing into a performance report and a teammate kill must not enter it.
+
 **Keep the server authoritative**
 
 - All damage application happens on the server. Clients predict movement, never health.
@@ -55,7 +62,9 @@ That lasting consequence is what makes a near-miss meaningful. A player who esca
 - [ ] The survival grace rule is either implemented or explicitly rejected, and documented.
 - [ ] Fall damage is applied in bands from the existing `FallHeight`, with a height above which it is fatal.
 - [ ] Drowning and instant-death volumes apply damage correctly.
-- [ ] All damage flows through a single server-side entry point.
+- [ ] All damage flows through a single server-side entry point, including both existing projectile branches.
+- [ ] The entry point classifies the damage source, so the friendly-fire policy can be applied in one place.
+- [ ] No damage path writes `CurrentHealth` directly, and no damage path records a kill to a scoring system.
 - [ ] A client cannot alter its own health; the server value always wins.
 - [ ] Hit reactions fire exactly once per hit, with no duplicates under latency.
 - [ ] Injury state is visible to the injured player and to teammates.
