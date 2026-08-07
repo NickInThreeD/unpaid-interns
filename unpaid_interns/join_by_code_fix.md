@@ -20,15 +20,20 @@ Half the UI already exists — `SessionInfo.cs:211` displays a copyable session 
 | No button | `Assets/Scripts/UI/Game/MainMenu.cs:137-141` |
 | Code already displayed | `Assets/Scripts/UI/SessionInfo/SessionInfo.cs:211` |
 | Code already read from here | `ConnectionSettings.Instance.SessionCode` (set at `GameManager.cs:272`) |
+| **UI state already scaffolded** | `GameSettings.cs:21` — `MainMenuState.JoinCodePopUp` |
+| **Style binding already scaffolded** | `GameSettings.cs:117-121` — `JoinSessionStyle` / `JoinSessionStylePropertyName` |
 
 ## The fix
 
-1. Add `JoinByCode` to the `CreationType` enum.
-2. Add a popup to capture the code, writing it to `ConnectionSettings.Instance.SessionCode` — which is what `JoinGameAsync` already reads. Model it on `DirectConnectPopUp`, and follow the `MainMenuState` + `CancellableUserInputPopUp` pattern used for the other two popups at `GameManager.cs:145-178`.
-3. Add the `case CreationType.JoinByCode: GameConnection = await GameConnection.JoinGameAsync(); break;` branch to the switch at `GameManager.cs:247`.
-4. Add a "Join by Code" button in `MainMenu.cs` calling `StartGameAsync(CreationType.JoinByCode)`.
+Smaller than it first appears — the popup's *state plumbing* already exists. `MainMenuState.JoinCodePopUp` and its `JoinSessionStyle` display binding are both present and unused, so someone started this and stopped before building the view.
 
-No new networking code is needed — the transport and session layers already handle this path. This is enum, UI, and wiring only.
+1. Add `JoinByCode` to the `CreationType` enum (`ConnectionSettings.cs:29`).
+2. Create `JoinCodePopup.uxml` and a `JoinCodePopUp.cs` binding to the **existing** `GameSettings.JoinSessionStylePropertyName`. Model both on `DirectConnectPopup.uxml` / `DirectConnectPopUp.cs`. The field writes to `ConnectionSettings.Instance.SessionCode`, which is what `JoinGameAsync` already reads.
+3. Add a `creationType == CreationType.JoinByCode` branch to the popup-await block at `GameManager.cs:145-178`, setting `MainMenuState = MainMenuState.JoinCodePopUp` — the enum value is already there.
+4. Add `case CreationType.JoinByCode: GameConnection = await GameConnection.JoinGameAsync(); break;` to the switch at `GameManager.cs:247`.
+5. Add a "Join by Code" button in `MainMenu.uxml` / `MainMenu.cs` calling `StartGameAsync(CreationType.JoinByCode)`.
+
+No new networking code is needed — the transport and session layers already handle this path. This is enum, UXML, and wiring only.
 
 ## Related
 
