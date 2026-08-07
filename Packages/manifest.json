@@ -1,5 +1,6 @@
 {
   "dependencies": {
+    "com.coplaydev.unity-mcp": "file:C:/Users/nicky/repo/unity-mcp/MCPForUnity",
     "com.unity.addressables": "2.9.1",
     "com.unity.ai.navigation": "2.0.11",
     "com.unity.animation.rigging": "1.4.1",
