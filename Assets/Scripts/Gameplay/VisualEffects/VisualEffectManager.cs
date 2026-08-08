@@ -1,82 +1,30 @@
-﻿using UnityEngine;
-using System.Collections.Generic;
 using System;
-using Unity.NetCode;
+using UnityEngine;
 
 namespace Unity.MP_FPS
 {
-    public struct ClientSpawnVfxRpc : IRpcCommand
+    /// <summary>
+    /// Local VFX spawning helper. The old ghost-RPC broadcast (so a remote player's muzzle flash was
+    /// visible to everyone) depended on <c>PlayerGhostManager</c> and the ghost-bridge RPC bus, both
+    /// deleted with Netcode for Entities. Nothing calls into weapon firing yet — that networked
+    /// broadcast needs to be rebuilt once a player registry and a weapon-firing system exist.
+    /// </summary>
+    public class VisualEffectManager : MonoBehaviour
     {
-        public int OwnerNetworkId;
-        public uint WeaponId;
-    }
+        public static VisualEffectManager Instance { get; private set; }
 
-    public class VisualEffectManager : GhostSingleton<VisualEffectManager>, IUpdateServer, IUpdateClient, IGhostManager
-    {
-        private Queue<ClientSpawnVfxRpc> _vfxQueue = new();
-
-        public void Server_RequestVfx(int ownerNetworkId, uint weaponId)
+        private void Awake()
         {
-            _vfxQueue.Enqueue(new ClientSpawnVfxRpc { OwnerNetworkId = ownerNetworkId, WeaponId = weaponId });
+            Instance = this;
         }
 
-        public void UpdateServer(float deltaTime)
-        {
-            while (_vfxQueue.Count > 0)
-            {
-                var vfxRequest = _vfxQueue.Dequeue();
-                GhostGameObject.BroadcastRPC(vfxRequest);
-            }
-        }
-
-        public void UpdateClient(float deltaTime)
-        {
-            while (GhostGameObject.ConsumeRPC(out ClientSpawnVfxRpc rpc))
-            {
-                int localPlayerNetworkId = -1;
-
-                // Find the local player's network ID
-                if (PlayerGhostManager.TryGetInstanceByRole(MultiplayerRole.ClientOwned, out var playerManager) &&
-                    playerManager.TryGetPlayersByRole(MultiplayerRole.ClientOwned, out var players) && players.Count > 0)
-                {
-                    var localPlayer = players[0];
-                    if (localPlayer != null && localPlayer.GhostGameObject != null)
-                    {
-                        localPlayerNetworkId = localPlayer.GhostGameObject.Owner;
-                    }
-                }
-
-                // If the RPC is for the local player, skip it.
-                // The local player already spawned their own VFX in the prediction system.
-                if (localPlayerNetworkId != -1 && localPlayerNetworkId == rpc.OwnerNetworkId)
-                {
-                    continue;
-                }
-
-                // This is for a remote player. Find them and spawn the effect.
-                if (PlayerGhostManager.TryGetInstanceByRole(MultiplayerRole.ClientAll, out var allPlayersManager) &&
-                    allPlayersManager.TryGetPlayersByRole(MultiplayerRole.ClientAll, out var allPlayers) && allPlayers.Count > 0)
-                {
-                    foreach (var player in allPlayers)
-                    {
-                        if (player.GhostGameObject.Owner == rpc.OwnerNetworkId)
-                        {
-                            // Found the remote player. Spawn the effect.
-                            SpawnMuzzleFlash(player, rpc.WeaponId, false);
-                            break;
-                        }
-                    }
-                }
-            }
-        }
-
-        public async void SpawnMuzzleFlash(PlayerGhost player, uint weaponId, bool isFirstPerson)
+        public async void SpawnMuzzleFlash(Transform spawnPoint, uint weaponId)
         {
             try
             {
-                if (player == null)
+                if (spawnPoint == null)
                 {
-                    Debug.Log("Cannot spawn muzzle flash: player is null");
+                    Debug.Log("Cannot spawn muzzle flash: spawn point is null");
                     return;
                 }
 
@@ -87,15 +35,9 @@ namespace Unity.MP_FPS
                     return;
                 }
 
-                var spawnPoint = isFirstPerson ? player.VisualShotOrigin1P : player.VisualShotOrigin3P;
-                if (spawnPoint == null)
-                {
-                    spawnPoint = player.transform; // Fallback
-                }
-
                 try
                 {
-                    var vfxInstance = await weaponData.MuzzleFlashVfxPrefab.GhostPrefab.InstantiateAsync(
+                    var vfxInstance = await weaponData.MuzzleFlashVfxPrefab.InstantiateAsync(
                         spawnPoint.position, spawnPoint.rotation, spawnPoint).Task;
                     if (vfxInstance == null)
                     {
@@ -118,17 +60,6 @@ namespace Unity.MP_FPS
             {
                 Debug.LogError("Error in SpawnMuzzleFlash: " + e.Message);
             }
-        }
-
-        private static void DrawGizmoAtPosition(Vector3 position)
-        {
-            var color = Color.red;
-            const float duration = 4.0f; // How long the gizmo will be visible in seconds
-            const float size = 0.5f; // The length of the lines for the cross marker
-
-            Debug.DrawRay(position - Vector3.up * size, Vector3.up * size * 2, color, duration);
-            Debug.DrawRay(position - Vector3.right * size, Vector3.right * size * 2, color, duration);
-            Debug.DrawRay(position - Vector3.forward * size, Vector3.forward * size * 2, color, duration);
         }
     }
 }

@@ -1,6 +1,5 @@
 using System;
 using System.Collections;
-using Unity.NetCode;
 using UnityEngine;
 using UnityEngine.UIElements;
 
@@ -56,19 +55,18 @@ namespace Unity.MP_FPS.Client
                     case ConnectionState.State.Connected:
                         m_ConnectionStatus.text += "Connected";
                         m_NetworkingRole.text = "Role: ";
-                        if (ClientServerBootstrap.HasServerWorld)
+                        if (GameManager.GameConnection != null && GameManager.GameConnection.IsHost)
                         {
-                            m_NetworkingRole.text += "Server";
+                            m_NetworkingRole.text += "Host";
                         }
                         else
                         {
                             m_NetworkingRole.text += "Client";
                         }
 
-                        if (GameManager.GameConnection != null &&
-                            GameManager.GameConnection.Session != null)
+                        if (GameManager.GameConnection != null)
                         {
-                            m_SessionName.text = $"Session: {GameManager.GameConnection.Session.Name}";
+                            m_SessionName.text = $"Session: {GameManager.GameConnection.Transport}";
                         }
                         else
                         {
