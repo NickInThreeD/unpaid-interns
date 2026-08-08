@@ -1,38 +1,20 @@
-//#define DEBUG_RENDER_MOVEMENT
-
-using System;
 using System.Runtime.CompilerServices;
 using Unity.MP_FPS;
 using Unity.Mathematics;
-using Unity.NetCode;
-using Unity.Transforms;
+using Unity.Netcode;
 using UnityEngine;
+using UnityEngine.InputSystem.Users;
 
+// Partial salvage from the Netcode-for-Entities version, not a straight port. Movement math (jump/
+// gravity/grounding/rotation-smoothing) carries over unchanged and still runs on built-in PhysX.
+// Everything tied to ghost prediction, the ECS command stream, and shooting/animation was cut —
+// see unpaid_interns/ngo_steam_migration_status.md. This is host-authoritative with client-side
+// interpolation (via NetworkTransform, added at the scene-wiring step): the owner sends input to the
+// server each frame, the server is the only one that moves the CharacterController, and everyone else
+// sees the replicated, interpolated result. No rollback prediction.
 [RequireComponent(typeof(CharacterController))]
-public class FirstPersonController : MonoBehaviour
+public class FirstPersonController : NetworkBehaviour
 {
-    public SoundDef PlayerHitSFX;
-
-    private static class AnimationParameters
-    {
-        //Speed, Strafe, Turn: float values
-        //Verbs: triggers
-        //Is-X: boolean values
-        public static readonly int IsMoving = Animator.StringToHash("IsMoving"); //1P
-        public static readonly int Speed = Animator.StringToHash("Speed"); //3P
-        public static readonly int StrafeSpeed = Animator.StringToHash("SpeedStrafe"); //3P
-        public static readonly int TurnSpeed = Animator.StringToHash("Turn"); //3P
-        public static readonly int Shoot = Animator.StringToHash("Shoot");
-        public static readonly int IsShooting = Animator.StringToHash("IsShooting");
-        public static readonly int Reload = Animator.StringToHash("Reload");
-        public static readonly int Jump = Animator.StringToHash("Jump");
-        public static readonly int Fall = Animator.StringToHash("Fall");
-        public static readonly int IsInAir = Animator.StringToHash("IsInAir");
-        public static readonly int Land = Animator.StringToHash("Land");
-        public static readonly int IsHit = Animator.StringToHash("IsHit");
-        public static readonly int IsDead = Animator.StringToHash("IsDead"); //3P
-    }
-
     private const float k_ResetMovementAdjustEpsilon = 1e-06f;
 
     public enum MovementType
@@ -56,61 +38,51 @@ public class FirstPersonController : MonoBehaviour
             LandTrigger = 1 << 7
         }
 
-        //WARNING WARNING: Adding more members to this struct might break network serialisation speak to Claire/Andy B
-
         // booleans
         public uint StateFlags;
 
-        [GhostField(SendData = false)]
         public bool Jump
         {
             get => (StateFlags & (uint)StateFlag.Jump) != 0;
             set => SetFlag(StateFlag.Jump, value);
         }
 
-        [GhostField(SendData = false)]
         public bool Fall
         {
             get => (StateFlags & (uint)StateFlag.Fall) != 0;
             set => SetFlag(StateFlag.Fall, value);
         }
 
-        [GhostField(SendData = false)]
         public bool Land
         {
             get => (StateFlags & (uint)StateFlag.Land) != 0;
             set => SetFlag(StateFlag.Land, value);
         }
 
-        [GhostField(SendData = false)]
         public bool Shoot
         {
             get => (StateFlags & (uint)StateFlag.Shoot) != 0;
             set => SetFlag(StateFlag.Shoot, value);
         }
 
-        [GhostField(SendData = false)]
         public bool IsReloadingState
         {
             get => (StateFlags & (uint)StateFlag.IsReloading) != 0;
             set => SetFlag(StateFlag.IsReloading, value);
         }
 
-        [GhostField(SendData = false)]
         public bool IsHit
         {
             get => (StateFlags & (uint)StateFlag.IsHit) != 0;
             set => SetFlag(StateFlag.IsHit, value);
         }
 
-        [GhostField(SendData = false)]
         public bool JumpTriggered
         {
             get => (StateFlags & (uint)StateFlag.JumpTrigger) != 0;
             set => SetFlag(StateFlag.JumpTrigger, value);
         }
 
-        [GhostField(SendData = false)]
         public bool LandTriggered
         {
             get => (StateFlags & (uint)StateFlag.LandTrigger) != 0;
@@ -130,7 +102,7 @@ public class FirstPersonController : MonoBehaviour
         public float PitchDegrees;
         public float MovementSpeed;
         public float JumpFallSpeed;
-        public float AnimatorTargetSpeed; // _animIDSpeed
+        public float AnimatorTargetSpeed;
         public float AnimatorTargetSpeedChangeRate;
         public float JumpTimeoutDelta;
         public float FallTimeoutDelta;
@@ -141,11 +113,9 @@ public class FirstPersonController : MonoBehaviour
         public float3 AnimatorMotion;
         public float AnimatorMotionChangeRate;
         public float AnimatorSmoothedMotionX;
-        public float AnimatorMotionSpeed; // _animIDMotionSpeed
+        public float AnimatorMotionSpeed;
 
         public float TeleportFreeze;
-
-        //WARNING WARNING: Adding more members to this struct might break network serialisation speak to Claire/Andy B
 
         private void SetFlag(StateFlag flag, bool set)
         {
@@ -208,33 +178,55 @@ public class FirstPersonController : MonoBehaviour
 
     [field: SerializeField] public Vector3 ControllerOffset { get; private set; } = new Vector3(0f, 0f, 0f);
 
-    [SerializeField] private Animator m_Animator_1P;
-    [SerializeField] private Animator m_Animator_3P;
-    [SerializeField] private bool m_EnableAnimationLogging = false;
-    private DamageVisualsController m_DamageVisualsController;
-    private uint _lastProcessedHitTick = 0;
-    private uint _lastAnimatedShotTick = 0;
-    private uint _lastAnimatedJumpTick = 0;
-    private uint _lastAnimatedLandTick = 0;
-    private uint _lastAnimatedReloadTick = 0;
+    [Header("Movement Tuning")]
+    [SerializeField]
+    private ControllerConsts m_Consts = new ControllerConsts
+    {
+        Walk = new ControllerConsts.StateConsts
+        {
+            Speed = 5f,
+            SpeedChangeRate = 20f,
+            RotationSmoothTime = 0.12f,
+            LandingSpeedMult = 1f,
+            AnimationMotionScale = 0.4f,
+        },
+        Sprint = new ControllerConsts.StateConsts
+        {
+            Speed = 8f,
+            SpeedChangeRate = 20f,
+            RotationSmoothTime = 0.12f,
+            LandingSpeedMult = 1f,
+            AnimationMotionScale = 0.4f,
+        },
+        JumpHeight = 1.2f,
+        Gravity = -15f,
+        StandingFallSpeed = -2f,
+        JumpTimeout = 0.1f,
+        FallTimeout = 0.15f,
+        LandingTimeout = 0.2f,
+        LandingAnimTimeout = 0.2f,
+        StateChangeSafetyTimeout = 0.5f,
+        GroundedOffset = 0.2f,
+        GroundLayers = ~0,
+        TerminalVelocity = -53f,
+    };
+
+    private ControllerState m_State;
+    private PlayerInput m_LatestInput;
+    private float2 m_AccumulatedLook;
 
     private CharacterController m_Controller;
     public CharacterController CharacterController => m_Controller;
 
-    private PlayerGhost m_PlayerGhost;
-    private PlayerGhost PlayerGhost => m_PlayerGhost;
+    private Camera m_PlayerCamera;
+    public Camera GetPlayerCamera() => m_PlayerCamera;
 
     private const int k_NumPhysicsResults = 8;
     private readonly RaycastHit[] m_GroundCheckRaycastResults = new RaycastHit[k_NumPhysicsResults];
 
     private const float k_DefaultSpeedChange = 20f;
 
-#if DEBUG_RENDER_MOVEMENT || DEBUG_RENDER_CLIMBING_MOVEMENT
-    private const float k_DebugRenderingTimeout = 5f;
-#endif
-
     private static readonly float3 k_UpVector = math.up();
-    private static readonly float3 k_ForwardVector = math.forward();
 
     public float CachedJumpFallSpeed { get; private set; }
     public float CachedFallHeight { get; private set; }
@@ -243,20 +235,71 @@ public class FirstPersonController : MonoBehaviour
     private MovementType m_PrevMovementType;
 #endif
 
-    private float footstepTriggerTimer = 0;
-    private float footstepStartTimer = 0;
-
     private void Awake()
     {
         TryGetComponent(out m_Controller);
-        Debug.Assert(m_Controller, "[THIRDPERSONCONTROLLER] Player has no CharacterController component");
+        Debug.Assert(m_Controller, "[FIRSTPERSONCONTROLLER] Player has no CharacterController component");
+    }
 
-        TryGetComponent(out m_PlayerGhost);
-        Debug.Assert(m_PlayerGhost, "[THIRDPERSONCONTROLLER] Player has no PlayerGhost component");
+    public override void OnNetworkSpawn()
+    {
+        if (IsServer)
+        {
+            m_State.Init(transform.position, transform.rotation);
+        }
 
-        TryGetComponent(out m_DamageVisualsController);
-        Debug.Assert(m_DamageVisualsController,
-            "[FIRSTPERSONCONTROLLER] Player has no DamageVisualsController component");
+        if (IsOwner)
+        {
+            m_PlayerCamera = Camera.main;
+            Utils.SetCursorVisible(false);
+        }
+    }
+
+    private void Update()
+    {
+        if (IsOwner)
+        {
+            SampleAndSendInput();
+        }
+
+        if (IsServer)
+        {
+            var deltaTime = Time.deltaTime;
+            var accumulatedMovement = float3.zero;
+            AccumulateMovement(ref m_State, ref accumulatedMovement, in m_LatestInput, in m_Consts, deltaTime);
+            ApplyMovementUpdate(ref m_State, in m_Consts, in accumulatedMovement, deltaTime);
+        }
+    }
+
+    private void SampleAndSendInput()
+    {
+        var user = InputSystemManager.GetFirstInputUser();
+        if (!user.valid)
+            return;
+
+        var controls = (InputSystem_Actions)user.actions;
+
+        var input = new PlayerInput
+        {
+            MoveInput = controls.Player.Move.ReadValue<Vector2>(),
+            Jump = controls.Player.Jump.triggered,
+        };
+
+        // matches the sensitivity/clamp previously applied in ClientInputReaderSystem
+        const float sensitivity = 3.7f;
+        float2 lookDelta = controls.Player.LookDelta.ReadValue<Vector2>() * sensitivity;
+
+        m_AccumulatedLook.x += lookDelta.x;
+        m_AccumulatedLook.y = math.clamp(m_AccumulatedLook.y - lookDelta.y, -85f, 85f);
+        input.LookYawPitchDegrees = m_AccumulatedLook;
+
+        SubmitInputServerRpc(input);
+    }
+
+    [ServerRpc]
+    private void SubmitInputServerRpc(PlayerInput input)
+    {
+        m_LatestInput = input;
     }
 
     public void SetExcludeLayers(LayerMask excludeLayers)
@@ -279,10 +322,6 @@ public class FirstPersonController : MonoBehaviour
     {
         if (state.MovementType != type)
         {
-#if ENABLE_MOVEMENT_DIAGNOSTICS
-            Debug.Log($"SetMovementType to {(int)type} (from {(int)state.MovementType})");
-#endif
-
             bool wasUpdatingFallHeight = ShouldUpdateFallHeight(state.MovementType);
 
             state.PreviousMovementType = state.MovementType;
@@ -295,15 +334,6 @@ public class FirstPersonController : MonoBehaviour
                 state.FallTimeoutDelta = float.MaxValue;
                 state.Fall = true;
             }
-
-#if DEBUG_RENDER_MOVEMENT
-            Debug.DrawLine(state.CurrentPosition - new float3(0.2f, 0f, 0f), 
-                    state.CurrentPosition + new float3(0.2f, 0f, 0f), 
-                    GetDebugColour(state.MovementType), k_DebugRenderingTimeout);
-            Debug.DrawLine(state.CurrentPosition - new float3(0f, 0.2f, 0f), 
-                    state.CurrentPosition + new float3(0f, 0.2f, 0f), 
-                    GetDebugColour(state.PreviousMovementType), k_DebugRenderingTimeout);
-#endif
         }
     }
 
@@ -361,7 +391,6 @@ public class FirstPersonController : MonoBehaviour
             var numHits = Physics.SphereCastNonAlloc(testStart, testRadius, Vector3.down,
                 m_GroundCheckRaycastResults, GroundedOffset, consts.GroundLayers, QueryTriggerInteraction.Ignore);
 
-
             // Choose the best hit
             float largestDot = float.MinValue;
             float closestDistSq = float.MaxValue;
@@ -371,16 +400,6 @@ public class FirstPersonController : MonoBehaviour
             for (int i = 0; i < numHits; ++i)
             {
                 var raycastResult = m_GroundCheckRaycastResults[i];
-
-                if (GhostGameObject.TryFindGhostGameObject(raycastResult.collider.gameObject, out var ghost) &&
-                    !GhostGameObject.BroadClientServerRolesMatch(ghost.Role, PlayerGhost.Role))
-                {
-                    // not a valid ground for this player (server hitting client object, or vice versa)
-                    continue;
-                }
-#if DEBUG_RENDER_MOVEMENT
-                    Debug.DrawLine(raycastResult.point, raycastResult.point + raycastResult.normal, Color.red, k_DebugRenderingTimeout);
-#endif
 
                 float dot = math.dot(raycastResult.normal, k_UpVector);
 
@@ -405,7 +424,7 @@ public class FirstPersonController : MonoBehaviour
             if (flattestHitIndex >= 0)
             {
                 Debug.Assert(closestHitIndex >= 0,
-                    "[THIRDPERSONCONTROLLER] flattest hit is valid but closest hit isn't, this shouldn't be possible!");
+                    "[FIRSTPERSONCONTROLLER] flattest hit is valid but closest hit isn't, this shouldn't be possible!");
 
                 RaycastHit flattest = m_GroundCheckRaycastResults[flattestHitIndex];
                 RaycastHit closest = m_GroundCheckRaycastResults[closestHitIndex];
@@ -445,13 +464,6 @@ public class FirstPersonController : MonoBehaviour
             state.LandTriggered = true;
             state.Jump = false;
             SetMovementType(ref state, MovementType.Standing);
-
-            bool isClientOwned = (m_PlayerGhost.Role == MultiplayerRole.ClientOwned);
-            if (isClientOwned)
-            {
-                Unity.MP_FPS.EventHandler eventHandler = m_Animator_1P.GetComponent<Unity.MP_FPS.EventHandler>();
-                eventHandler.onFootDown = true;
-            }
         }
         else if (!isGrounded && state.MovementType == MovementType.Standing)
         {
@@ -472,164 +484,6 @@ public class FirstPersonController : MonoBehaviour
             state.GroundNormal = k_UpVector;
             GroundPhysicsMaterial = null;
         }
-    }
-
-    public void ApplyInterpolatedClientState(ref ControllerState state,
-        in ControllerConsts consts, in LocalTransform localTransform, float deltaTime, bool applyAnimation = false)
-    {
-        // apply smoothed rotation
-        state.CurrentPosition = localTransform.Position;
-        state.CurrentRotation = localTransform.Rotation;
-
-        transform.SetPositionAndRotation(state.CurrentPosition, state.CurrentRotation);
-    }
-
-    public void ApplyAnimatorState(in ControllerState state, in ControllerConsts consts, float deltaTime)
-    {
-        if (m_PlayerGhost == null || m_PlayerGhost.GhostGameObject == null)
-        {
-            return; //Return if the ghost has not been linked
-        }
-
-        var predictedPlayerGhost = m_PlayerGhost.GhostGameObject.ReadGhostComponentData<PredictedPlayerGhost>();
-        bool isClientOwned = (m_PlayerGhost.Role == MultiplayerRole.ClientOwned);
-        var animator = isClientOwned ? m_Animator_1P : m_Animator_3P;
-
-        if (animator == null)
-            return;
-
-        // Handle one-shot events first
-        HandleAnimationEvents(animator, predictedPlayerGhost);
-
-        // Then handle continuous state parameters
-        if (isClientOwned)
-        {
-            ApplyFirstPersonMovementAnimation(animator, state);
-        }
-        else
-        {
-            ApplyThirdPersonMovementAnimation(animator, state, predictedPlayerGhost.CurrentHealth);
-        }
-    }
-
-    private void HandleAnimationEvents(Animator animator, in PredictedPlayerGhost ghostState)
-    {
-        // Shooting
-        if (ghostState.LastShotTick > _lastAnimatedShotTick)
-        {
-            if (!ghostState.ControllerState.IsReloadingState && !animator.GetBool(AnimationParameters.IsShooting))
-            {
-                if (m_EnableAnimationLogging)
-                {
-                    Debug.Log($"[ANIMATION] Firing SHOOT trigger at Tick: {ghostState.LastShotTick.ToString()}");
-                }
-
-                animator.SetTrigger(AnimationParameters.Shoot);
-            }
-
-            _lastAnimatedShotTick = ghostState.LastShotTick;
-        }
-
-        // Reloading
-        if (ghostState.LastReloadTick > _lastAnimatedReloadTick)
-        {
-            if (m_EnableAnimationLogging)
-            {
-                Debug.Log($"[ANIMATION] Firing RELOAD trigger at Tick: {ghostState.LastReloadTick.ToString()}");
-            }
-
-            animator.SetTrigger(AnimationParameters.Reload);
-
-
-            var weaponData = WeaponManager.Instance.WeaponRegistry.GetWeaponData(ghostState.EquippedWeaponID);
-            if (weaponData != null && weaponData.WeaponReloadSfx != null)
-            {
-                Unity.MP_FPS.EventHandler eventHandler = animator.GetComponent<Unity.MP_FPS.EventHandler>();
-                eventHandler.reloadSFX = weaponData.WeaponReloadSfx;
-            }
-
-            _lastAnimatedReloadTick = ghostState.LastReloadTick;
-        }
-
-        // Jumping
-        if (ghostState.LastJumpTick > _lastAnimatedJumpTick)
-        {
-            if (m_EnableAnimationLogging)
-            {
-                Debug.Log($"[ANIMATION] Firing JUMP trigger at Tick: {ghostState.LastJumpTick.ToString()}");
-            }
-
-            animator.SetTrigger(AnimationParameters.Jump);
-            _lastAnimatedJumpTick = ghostState.LastJumpTick;
-        }
-
-        // Landing
-        if (ghostState.LastLandTick > _lastAnimatedLandTick)
-        {
-            if (m_EnableAnimationLogging)
-            {
-                Debug.Log($"[ANIMATION] Firing LAND trigger at Tick: {ghostState.LastLandTick.ToString()}");
-            }
-
-            animator.SetTrigger(AnimationParameters.Land);
-            _lastAnimatedLandTick = ghostState.LastLandTick;
-        }
-
-        // Hit Reaction
-        if (ghostState.LastHitTick > _lastProcessedHitTick)
-        {
-            if (m_PlayerGhost.Role == MultiplayerRole.ClientOwned)
-            {
-                if (m_EnableAnimationLogging)
-                {
-                    Debug.Log($"[ANIMATION] Firing 1P HIT trigger at Tick: {ghostState.LastHitTick.ToString()}");
-                }
-
-                // Handle the 1P visual-only damage vignette
-                if (m_DamageVisualsController != null)
-                {
-                    m_DamageVisualsController.TriggerDamageEffect();
-                }
-            }
-            else
-            {
-                if (m_EnableAnimationLogging)
-                {
-                    Debug.Log($"[ANIMATION] Firing 3P HIT trigger at Tick: {ghostState.LastHitTick.ToString()}");
-                }
-
-                // Handle the 3P hit animation
-                animator.SetTrigger(AnimationParameters.IsHit);
-            }
-
-            if (PlayerHitSFX != null)
-            {
-                GameManager.Instance.SoundSystem.CreateEmitter(PlayerHitSFX, transform.position);
-            }
-
-            _lastProcessedHitTick = ghostState.LastHitTick;
-        }
-    }
-
-    private void ApplyFirstPersonMovementAnimation(Animator animator, in ControllerState state)
-    {
-        float targetIsMovingValue = (state.AnimatorTargetSpeed != 0.0f) ? 1.0f : 0.0f;
-        animator.SetFloat(AnimationParameters.IsMoving, targetIsMovingValue);
-    }
-
-    private void ApplyThirdPersonMovementAnimation(Animator animator, in ControllerState state, float currentHealth)
-    {
-        float3 relativeSpeed = math.mul(math.inverse(state.CurrentRotation), state.MovementRequest);
-        animator.SetFloat(AnimationParameters.Speed, relativeSpeed.z); // Use raw value for blend trees
-        animator.SetFloat(AnimationParameters.StrafeSpeed, relativeSpeed.x);
-
-        float speedZ = (math.abs(relativeSpeed.z) < 0.01f) ? 0.0f : math.sign(relativeSpeed.z);
-        float speedX = (math.abs(relativeSpeed.x) < 0.01f) ? 0.0f : math.sign(relativeSpeed.x);
-        animator.SetFloat(AnimationParameters.Speed, speedZ);
-        animator.SetFloat(AnimationParameters.StrafeSpeed, speedX);
-
-        bool isDead = (currentHealth <= 0);
-        animator.SetBool(AnimationParameters.IsDead, isDead);
     }
 
     private void ApplyPosImmediate(in ControllerState state)
@@ -684,7 +538,7 @@ public class FirstPersonController : MonoBehaviour
                     break;
                 default:
                     Debug.LogError(
-                        $"[THIRDPERSONCONTROLLER] GetStateConsts : Unhandled state {state.MovementType.ToString()}");
+                        $"[FIRSTPERSONCONTROLLER] GetStateConsts : Unhandled state {state.MovementType.ToString()}");
                     break;
             }
         }
@@ -704,7 +558,6 @@ public class FirstPersonController : MonoBehaviour
         var localMove = new float3(input.MoveInput.x, 0f, input.MoveInput.y);
 
         // Normalize it to get a pure direction vector with a length of 1.
-        // This is the crucial step.
         var localDir = math.normalizesafe(localMove);
 
         // Rotate the pure direction by the character's facing rotation.
@@ -778,17 +631,13 @@ public class FirstPersonController : MonoBehaviour
             default:
                 {
                     Debug.LogError(
-                        $"[THIRDPERSONCONTROLLER] AccumulateMovement : Unhandled state {state.MovementType.ToString()}");
+                        $"[FIRSTPERSONCONTROLLER] AccumulateMovement : Unhandled state {state.MovementType.ToString()}");
                 }
                 break;
         }
 
         accumulatedMovement += moveDelta * deltaTime;
         state.MovementRequest = accumulatedMovement;
-
-#if DEBUG_RENDER_MOVEMENT
-        Debug.DrawLine(state.CurrentPosition, state.CurrentPosition + accumulatedMovement, GetDebugColour(state.MovementType), k_DebugRenderingTimeout);
-#endif
     }
 
     private void ApplyMove(ref ControllerState state, in ControllerConsts consts, in float3 accumulatedMovement,
@@ -825,68 +674,13 @@ public class FirstPersonController : MonoBehaviour
             state.FallHeight += fallDist;
         }
 
-        HandleFirstPersonFootstepSFX(state);
-
         // store position
         state.CurrentPosition = transform.position;
 
 #if UNITY_EDITOR || DEBUG
         m_PrevMovementType = state.MovementType;
 #endif
-
-#if ENABLE_MOVEMENT_DIAGNOSTICS
-        if (ServerPlayerMovementSystem.PlayerMovementActive)
-        {
-            MovementLog($"{name} - server tick {ServerPlayerMovementSystem.PlayerMovementTick} with position {state.CurrentPosition}");
-        }
-        else
-        {
-            MovementLog($"{name} - prediction tick {PlayerPredictionSystem.PlayerMovementTick} with position {state.CurrentPosition}");
-        }
-#endif
     }
-
-#if ENABLE_MOVEMENT_DIAGNOSTICS
-    public void OnControllerColliderHit(ControllerColliderHit hit)
-    {
-        Debug.Log($"[{UnityEngine.Time.frameCount}] OnControllerColliderHit hit {hit.collider.name} ghost = {(GhostGameObject.TryFindGhostGameObject(hit.gameObject, out var ghost) ? ghost.name : "null")}");
-    }
-
-#endif
-
-    private void HandleFirstPersonFootstepSFX(ControllerState state)
-    {
-        if (state.MovementType == MovementType.Standing && m_Controller != null && m_Controller.enabled && gameObject.activeInHierarchy)
-        {
-            bool isClientOwned = (m_PlayerGhost.Role == MultiplayerRole.ClientOwned);
-            if (isClientOwned)
-            {
-                if (transform.position.x == state.CurrentPosition.x && transform.position.z == state.CurrentPosition.z)
-                {
-                    footstepTriggerTimer = 0;
-                }
-                else
-                {
-                    if (footstepTriggerTimer == 0)
-                    {
-                        footstepTriggerTimer = Time.time;  // This is called multiple times per update. So I can't use Time.delta
-                        footstepStartTimer = footstepTriggerTimer;
-                    }
-                    footstepTriggerTimer = Time.time;
-
-                    float t = footstepTriggerTimer - footstepStartTimer;
-                    if (t >= 0.5f)
-                    {
-                        footstepStartTimer += 0.5f;
-                        Unity.MP_FPS.EventHandler eventHandler = m_Animator_1P.GetComponent<Unity.MP_FPS.EventHandler>();
-                        eventHandler.onFootDown = true;
-                    }
-                }
-            }
-        }
-    }
-
-
 
     private static void AccumulateJumpAndGravity(ref ControllerState state, in PlayerInput input,
         in ControllerConsts consts, float deltaTime)
@@ -937,7 +731,7 @@ public class FirstPersonController : MonoBehaviour
             default:
                 {
                     Debug.LogError(
-                        $"[THIRDPERSONCONTROLLER] AccumulateJumpAndGravity : Unhandled state {state.MovementType.ToString()}");
+                        $"[FIRSTPERSONCONTROLLER] AccumulateJumpAndGravity : Unhandled state {state.MovementType.ToString()}");
                 }
                 break;
         }
@@ -970,67 +764,6 @@ public class FirstPersonController : MonoBehaviour
         }
     }
 
-    public async void SpawnPredictedProjectile(uint spawnTick, uint weaponId, Vector3 spawnPosition,
-        Quaternion spawnRotation)
-    {
-        try
-        {
-            var alreadyExists = false;
-            for (var i = 0; i < Projectile.PredictedProjectiles.Count; i++)
-            {
-                var proj = Projectile.PredictedProjectiles[i];
-                if (proj.SpawnTick == spawnTick)
-                {
-                    alreadyExists = true;
-                    break;
-                }
-            }
-
-            if (alreadyExists)
-            {
-                return;
-            }
-
-            var playerGhost = GetComponent<PlayerGhost>();
-            var projectilePrefabRef = playerGhost.ProjectilePrefabAR;
-
-            if (!projectilePrefabRef.RuntimeKeyIsValid() || playerGhost.CameraTarget == null)
-            {
-                Debug.LogWarning(
-                    "[CLIENT] Cannot spawn predicted projectile as prefab ref or camera target is null");
-                return;
-            }
-
-            // var spawnPosition = playerGhost.CameraTarget.position;
-            // var spawnRotation = playerGhost.CameraTarget.rotation;
-            //
-            var predictedProjectile = await projectilePrefabRef.InstantiateAsync(spawnPosition, spawnRotation).Task;
-            if (predictedProjectile == null)
-            {
-                Debug.LogWarning("[CLIENT] Failed to instantiate predicted projectile");
-                return;
-            }
-
-            predictedProjectile.transform.parent =
-                GhostBridgeBootstrap.Instance.ClientGameObjectHierarchy.transform;
-
-            var projectile = predictedProjectile.GetComponent<Projectile>();
-            projectile.SetWeaponId(weaponId);
-
-            var projectileInfo = new Projectile.PredictedProjectileInfo
-            {
-                Instance = predictedProjectile,
-                SpawnTick = spawnTick
-            };
-
-            Projectile.PredictedProjectiles.Add(projectileInfo);
-        }
-        catch (Exception e)
-        {
-            Debug.LogException(e);
-        }
-    }
-
     private static bool AccumulateJump(ref ControllerState state, in PlayerInput input, in ControllerConsts consts,
         float deltaTime)
     {
@@ -1045,11 +778,6 @@ public class FirstPersonController : MonoBehaviour
             state.Jump = true;
             state.JumpTriggered = true;
             jumped = true;
-
-#if DEBUG_RENDER_MOVEMENT
-            Debug.DrawLine(state.CurrentPosition - new float3(0.2f, 0f, 0f), state.CurrentPosition + new float3(0.2f, 0f, 0f), Color.black, k_DebugRenderingTimeout);
-            Debug.DrawLine(state.CurrentPosition - new float3(0f, 0f, 0.2f), state.CurrentPosition + new float3(0f, 0f, 0.2f), Color.black, k_DebugRenderingTimeout);
-#endif
         }
 
         if (state.JumpTimeoutDelta > 0f)
@@ -1059,38 +787,6 @@ public class FirstPersonController : MonoBehaviour
 
         return jumped;
     }
-
-#if DEBUG_RENDER_MOVEMENT
-    private static Color GetDebugColour(MovementType movement)
-    {
-        var colour = Color.white;
-
-        switch (movement)
-        {
-            case MovementType.Standing:
-                colour = Color.green;
-                break;
-            case MovementType.Jumping:
-                colour = Color.cyan;
-                break;
-            case MovementType.Falling:
-                colour = Color.blue;
-                break;
-            case MovementType.Sliding:
-                colour = Color.yellow;
-                break;
-            case MovementType.Stationary:
-                colour = Color.red;
-                break;
-            case MovementType.Swimming:
-                colour = Color.magenta;
-                break;
-        }
-
-        return colour;
-    }
-
-#endif
 
     // taken from DOTSSample MathHelper
     // Collection of converted classic Unity (Mathf, Vector3 etc.) + some homegrown math functions using Unity.Mathematics

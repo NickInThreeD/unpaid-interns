@@ -18,7 +18,7 @@ namespace Unity.MP_FPS
 
         private FullScreenPassWrapper _damagePass;
         private Material _runtimeDamageMaterial;
-        private PlayerGhost _playerGhost; // To get a reference to this player's camera
+        private FirstPersonController _playerController; // To get a reference to this player's camera
 
         private float _currentIntensity = 0f;
         private static readonly int IntensityID = Shader.PropertyToID("_Intensity");
@@ -28,9 +28,9 @@ namespace Unity.MP_FPS
             Debug.Assert(screenDamageMaterial,
                 "[DamageVisualsController] Player has no screenDamageMaterial assigned.");
 
-            // Get the PlayerGhost component to identify this player's camera
-            _playerGhost = GetComponentInParent<PlayerGhost>();
-            Debug.Assert(_playerGhost, "[DamageVisualsController] Could not find PlayerGhost component in parent.");
+            // Get the FirstPersonController component to identify this player's camera
+            _playerController = GetComponentInParent<FirstPersonController>();
+            Debug.Assert(_playerController, "[DamageVisualsController] Could not find FirstPersonController component in parent.");
 
             _runtimeDamageMaterial = new Material(screenDamageMaterial);
 
@@ -50,7 +50,7 @@ namespace Unity.MP_FPS
                 return;
             }
 
-            if (_playerGhost != null && camera == _playerGhost.GetPlayerCamera())
+            if (_playerController != null && _playerController.IsOwner && camera == _playerController.GetPlayerCamera())
             {
                 // Setup and enqueue the pass for this camera's renderer.
                 _damagePass.EnqueuePass(camera);

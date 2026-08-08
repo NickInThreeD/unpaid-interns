@@ -1,4 +1,5 @@
 ﻿using UnityEngine;
+using UnityEngine.AddressableAssets;
 
 namespace Unity.MP_FPS
 {
@@ -34,11 +35,11 @@ namespace Unity.MP_FPS
         [Header("Ammo & Reloading")] public int MagazineSize = 30;
         public float ReloadTime = 2.0f; // Time in seconds
 
-        [Header("Projectile Properties")] [Tooltip("The ghost prefab for the projectile to be spawned.")]
-        public GhostSpawner.GhostReference ProjectileGhostPrefab;
+        [Header("Projectile Properties")] [Tooltip("The prefab for the projectile to be spawned.")]
+        public AssetReferenceGameObject ProjectilePrefab;
 
-        public GhostSpawner.GhostReference ProjectileHitVfxPrefab;
-        public GhostSpawner.GhostReference MuzzleFlashVfxPrefab;
+        public AssetReferenceGameObject ProjectileHitVfxPrefab;
+        public AssetReferenceGameObject MuzzleFlashVfxPrefab;
         public SoundDef WeaponFireSfx;
         public SoundDef WeaponReloadSfx;
 

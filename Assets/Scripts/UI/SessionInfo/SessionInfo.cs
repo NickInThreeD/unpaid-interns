@@ -1,14 +1,8 @@
 using System;
 using System.Globalization;
 using System.Text;
-using System.Text.RegularExpressions;
 using Unity.Burst;
-using Unity.Collections;
-using Unity.Entities;
-using Unity.Mathematics;
-using Unity.NetCode;
 using Unity.Profiling;
-using Unity.Services.Multiplayer;
 using UnityEngine;
 using UnityEngine.UIElements;
 using Debug = UnityEngine.Debug;
@@ -69,7 +63,6 @@ namespace Unity.MP_FPS.Client
             m_RightInfoLabel = m_SessionInfoBanner.Q<Label>(UIElementNames.RightInfoLabel);
             m_HardwareInfoLabel = m_SessionInfoBanner.Q<Label>(UIElementNames.HardwareInfoLabel);
             m_ConnectionInfoLabel = m_SessionInfoBanner.Q<Label>(UIElementNames.ConnectionInfoLabel);
-            m_ConnectionInfoLabel.RegisterCallback<ClickEvent>(CopySessionCode);
             m_ArgsInfoLabel = m_SessionInfoBanner.Q<Label>(UIElementNames.ArgsInfoLabel);
             m_ShowSessionInfo = m_SessionInfoBanner.Q<Label>(UIElementNames.ShowSessionInfo);
 
@@ -108,16 +101,6 @@ namespace Unity.MP_FPS.Client
             UpdateSessionInfo();
         }
 
-        void CopySessionCode(ClickEvent _)
-        {
-            if (ConnectionSettings.Instance.GameConnectionState != ConnectionState.State.Disconnected
-                && !string.IsNullOrEmpty(ConnectionSettings.Instance.SessionCode))
-            {
-                GUIUtility.systemCopyBuffer = ConnectionSettings.Instance.SessionCode;
-                Debug.Log($"Session code {ConnectionSettings.Instance.SessionCode} was copied to clipboard.");
-            }
-        }
-
         void ToggleSessionInfoVisibility()
         {
             m_SessionInfoContainer.style.display = m_SessionInfoContainer.style.display == DisplayStyle.None ? DisplayStyle.Flex : DisplayStyle.None;
@@ -125,8 +108,6 @@ namespace Unity.MP_FPS.Client
 
         void OnDisable()
         {
-            m_ConnectionInfoLabel.UnregisterCallback<ClickEvent>(CopySessionCode);
-            
             if (ConnectionSettings.Instance != null)
             {
                 ConnectionSettings.Instance.propertyChanged -= OnConnectionStateChanged;
@@ -200,15 +181,11 @@ namespace Unity.MP_FPS.Client
         {
             var netcodeInfo = GetNetcodeInfoFromSystem();
             var playerName = GameSettings.Instance.PlayerName;
-            var networkRole = ClientServerBootstrap.HasServerWorld ? NetworkRole.Host : NetworkRole.Client;
-            var interactionTypeText = "click";
+            var networkRole = GameManager.GameConnection is { IsHost: true } ? "Host" : "Client";
 
-#if UNITY_ANDROID || UNITY_IOS
-            interactionTypeText = "tap";
-#endif
             var sessionState =
-                ConnectionSettings.Instance.GameConnectionState != ConnectionState.State.Disconnected && ConnectionSettings.Instance.SessionCode != null
-                ? $"Session-Code: <b>{ConnectionSettings.Instance.SessionCode}</b> ({interactionTypeText} to copy) | Role: <b>{networkRole.ToString()}</b>"
+                ConnectionSettings.Instance.GameConnectionState != ConnectionState.State.Disconnected
+                ? $"Role: <b>{networkRole}</b>"
                 : "No Session";
 
             m_ConnectionInfoLabel.text = string.Format(m_ConnectionInfo, playerName, sessionState);
@@ -344,23 +321,18 @@ namespace Unity.MP_FPS.Client
             return r;
         }
         
-        /// <summary>
-        /// Reads the cached network status from the NetworkStatusSystem.
-        /// </summary>
+        /// <summary>Reads network status straight from NGO's <see cref="NetworkManager"/>.</summary>
         /// <returns>A formatted string with network status, or a default message if not available.</returns>
         private string GetNetcodeInfoFromSystem()
         {
-            var clientWorld = ClientServerBootstrap.ClientWorld;
-            
-            if (clientWorld == null || !clientWorld.IsCreated || NetworkStatusSystem.StatusEntity == Entity.Null)
-                return $"<color={k_RedColor}>No client world!</color>";
+            var networkManager = Unity.Netcode.NetworkManager.Singleton;
+            if (networkManager == null || !networkManager.IsListening)
+                return $"<color={k_RedColor}>No network manager!</color>";
 
-            var entityManager = clientWorld.EntityManager;
+            if (networkManager.IsConnectedClient || networkManager.IsHost)
+                return $"<color={k_GreenColor}>Connected</color>";
 
-            var status = entityManager.GetComponentData<NetworkStatusSingleton>(
-                NetworkStatusSystem.StatusEntity);
-            
-            return status.Status.ToString();
+            return $"<color={k_OrangeColor}>Connecting...</color>";
         }
     }
 }

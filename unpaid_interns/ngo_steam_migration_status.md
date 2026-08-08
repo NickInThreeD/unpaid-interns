@@ -5,9 +5,12 @@
 **Date:** 2026-08-08
 **Plan:** [`ngo_steam_migration.md`](ngo_steam_migration.md)
 
-**State:** Phases 0–2 complete. Phase 3 and Phase 5 substantially written but not
-compiling — the shooter gameplay layer still references deleted ECS types.
-**106 compile errors remain, confined to 13 files, all listed below.**
+**State:** Phases 0–2 complete. Phase 3 written. The 106 compile errors across the 13 files below
+have been fixed — see [Compile-error pass (2026-08-08)](#compile-error-pass-2026-08-08) for what
+each fix actually did and where it narrowed scope. **This was not verified with a real compiler**:
+this environment has no Unity install, no `dotnet`, and no UnityMCP bridge, so every fix here is a
+careful manual read, not a green build. Opening the project in the Editor is the first thing the
+next session should do.
 
 ---
 
@@ -152,48 +155,98 @@ so a dead host produces an error rather than an infinite loading screen.
 
 ---
 
+## Compile-error pass (2026-08-08)
+
+Ran in a cloud session with no Unity Editor, no UnityMCP, no `dotnet` — fixes below are a careful
+manual read of every call site, cross-checked against what still exists post-Phase-2, not a
+compiler run. **Verify with a real build before trusting this.**
+
+| File | What was done |
+|---|---|
+| `Gameplay/Player/Projectile/Projectile.cs` | Deleted (with its `.meta` and the now-empty `Projectile/` folder). Confirmed no other script referenced it. |
+| `Gameplay/Player/PlayerGhost/PlayerGhost.cs` | Deleted. Confirmed no other script referenced it. |
+| `Gameplay/Player/PlayerGhost/PlayerGhostManager.cs` | Deleted. Confirmed no other script referenced it. |
+| `Gameplay/Player/PlayerGhost/PlayerGhostMonoBehaviour.cs` | Deleted (abstract, never attached to a prefab). |
+| `Gameplay/UI/LeaderboardUi.cs` | Deleted. |
+| `Gameplay/UI/RespawnScreen.cs` | Deleted. |
+| `Gameplay/Weapon/WeaponData.cs` | `GhostSpawner.GhostReference` (an ECS-ghost-GUID wrapper, deleted with `GhostSpawner.cs` in Phase 2) → plain `AssetReferenceGameObject` on all three prefab fields. `ProjectileGhostPrefab` renamed to `ProjectilePrefab`. **The `.asset` files (`Shotgun.asset`, `AssaultRifle.asset`) still have the old serialized field under the old type — those references will come up empty in the Editor and need re-assigning.** |
+| `UI/Game/NetworkStatus.cs` | `ClientServerBootstrap.HasServerWorld` → `GameManager.GameConnection.IsHost`. Session-name display now shows `GameConnection.Transport` (Steam/Direct) since there's no `Session.Name` concept left post-UGS. |
+| `UI/SessionInfo/SessionInfo.cs` | Dropped the session-code copy-to-clipboard UI (`ConnectionSettings.SessionCode` doesn't exist — confirmed dead under overlay-only invites, per plan). `ClientServerBootstrap`/ECS-world-based netcode status → reads `Unity.Netcode.NetworkManager.Singleton` directly. |
+| `Gameplay/VisualEffects/GhostVisualEffect.cs` | Renamed to `NetworkedTimedEffect.cs` **via `git mv` on both the `.cs` and `.cs.meta`**, preserving the GUID so the 4 prefabs referencing it (`BulletImpact`, `CustomMuzzleFlash`, `MachineGunBulletHit`, `PlasmaHit`) keep resolving. Rewritten as a plain `NetworkBehaviour` that despawns itself server-side after `Lifetime` — replaces the deleted `GhostGameObject.DestroyEntity()` call. |
+| `Gameplay/VisualEffects/VisualEffectManager.cs` | **Scope narrowed.** Its base classes (`GhostSingleton<T>`, `IUpdateServer`, `IUpdateClient`, `IGhostManager`) and its RPC path (`GhostGameObject.BroadcastRPC`/`ConsumeRPC`, `IRpcCommand`) were part of the deleted `GhostBridge` RPC bridge, not just a few field references. It also looked up the firing player via `PlayerGhostManager` (deleted) to find their shot origin — that registry has no replacement yet. Rebuilding a real networked "remote players see my muzzle flash" broadcast needs a player registry that doesn't exist and wasn't attempted. What's left: a plain `MonoBehaviour` singleton with `SpawnMuzzleFlash(Transform spawnPoint, uint weaponId)` — the VFX-instantiation logic is intact and callable, just not wired to any caller (no weapon-firing system exists yet either). |
+| `Gameplay/UI/InGameHUD.cs` | **Scope narrowed further than "rewrite against `NetworkVariable`" suggests — there is no `NetworkVariable` anywhere in the codebase yet** (grepped for it; zero hits outside this file and the deleted `Projectile.cs`). Health/ammo/reticle all read `PredictedPlayerGhost` fields (`CurrentHealth`, `EquippedWeaponID`, `WeaponCooldown`, ...) that have no NGO equivalent — no health or weapon-equip state has been ported. Stripped to just the HUD-visibility toggle (`GameSettings.GameState`); health/ammo/reticle need a real NetworkVariable-backed player-state system before they can come back. |
+| `Gameplay/VisualEffects/DamageVisualsController.cs` | **Not on the original 13-file list — found by a reference-check pass before deleting `PlayerGhost.cs`, since it did `GetComponentInParent<PlayerGhost>()` for the local player's camera.** Repointed at `FirstPersonController` (now the thing that knows about the owning player's camera) and gated on `IsOwner` instead of a `PlayerGhost.Role` check. |
+| `Gameplay/Player/Movement/FirstPersonController.cs` | Phase 4's actual work — see below, not a small fix. |
+
+The plan says *"Delete the shooter — removing it is not a loss."* Most of the file list above was
+that deletion. Two files (`VisualEffectManager`, `InGameHUD`) survive but are now inert shells,
+narrower than their original scope, because the state they displayed or broadcast doesn't exist in
+the NGO version of this project yet. That's a real gap, not a rewrite — see "What remains" below.
+
+## Phase 4 — Player controller and physics (this pass)
+
+`FirstPersonController.cs` is now a `NetworkBehaviour`, salvaging exactly the functions the plan
+named — `AccumulateJumpAndGravity`, `AccumulateGravity`, `AccumulateJump`, `CalculateMovementFromInput`,
+`UpdateGround`/`GroundedCheck`, `SmoothDamp`/angle helpers — unchanged, still pure PhysX math.
+Discarded `[GhostField]`, `HandleAnimationEvents`, `ApplyInterpolatedClientState`,
+`SpawnPredictedProjectile`, and (going further than the plan's explicit list, since their only
+callers were the above) the animator-driven code (`ApplyAnimatorState` and friends) and footstep SFX
+— both read state (`PredictedPlayerGhost`, weapon cooldown/reload) that doesn't exist yet. Camera
+setup (previously `PlayerGhost.CreateClientCamera()`, instantiating a per-player camera prefab) was
+simplified to just capturing `Camera.main` on the owner in `OnNetworkSpawn` — consistent with
+`CinemachineCameraTarget` already being a field here, implying a scene-level Cinemachine rig rather
+than per-player camera instantiation.
+
+**The bigger piece: an ECS type this file depended on, `PlayerInput`, no longer exists at all** — it
+was defined in `PlayerCommandInput.cs`, deleted in Phase 2 along with the rest of the ECS input
+systems (`ClientInputReaderSystem`, `ClientInputSenderSystem`). Recreated as a plain struct in the
+new `Gameplay/Input/PlayerInput.cs` (`MoveInput`, `LookYawPitchDegrees`, `Jump`; implements
+`INetworkSerializable` for RPC transport), and ported `ClientInputReaderSystem`'s mouse-look
+accumulation (sensitivity `3.7`, pitch clamped ±85°) into a new `SampleAndSendInput()` that runs on
+the owner every `Update()`.
+
+**Networking model implemented:** owner samples input each frame → `[ServerRpc] SubmitInputServerRpc`
+→ server stores it and, also every `Update()`, runs `AccumulateMovement` + `ApplyMovementUpdate`
+against its own copy of the `CharacterController`. No other file drives this anymore — the ECS tick
+systems that used to call these functions are gone, so this `Update()` loop *is* the port, not
+incidental plumbing. This matches "host-authoritative, client-side interpolation, no rollback
+prediction" **once a `NetworkTransform` component is added to the player prefab** (server-authoritative
+mode) — that's an Editor step, not done here, see below. Until that component exists, movement will
+not replicate to anyone: the server moves its own `CharacterController.Move()`, but nothing sends
+that position to remote clients.
+
+**Not done, deliberately, because it's out of this pass's scope (weapon/animation porting, not
+movement):** shooting, reloading, ammo, third-person animation sync, footstep audio. `SoundDef
+PlayerHitSFX` was removed since its only reader (`HandleAnimationEvents`) is gone.
+
+`ControllerConsts` used to be authored via a deleted ECS baking component; there's no replacement
+authoring path since subscenes are gone, so tuning values now live directly on
+`FirstPersonController` as a `[SerializeField]` with placeholder defaults (`Walk.Speed = 5`,
+`JumpHeight = 1.2`, `Gravity = -15`, ...) — **these need real tuning in the Editor**, they were picked
+to be plausible, not measured.
+
 ## What remains
 
-### 1. Fix the 106 compile errors
+### 1. Verify the compile-error fixes with a real build
 
-All in the shooter/ghost layer. Nothing else in the project errors — audio,
-input, weapons registry, addressables, URP and every `.uxml` are clean.
+This whole pass was done blind. Open the project in the Unity Editor (or point UnityMCP at it) and
+confirm 0 errors before trusting anything above. Given the scale of the `FirstPersonController`
+rewrite in particular, budget time to fix whatever the compiler finds that manual review missed.
 
-| Errors | File | What to do |
-|---:|---|---|
-| 34 | `Gameplay/Player/Movement/FirstPersonController.cs` | **Phase 4.** Partial salvage, not a port — see below. |
-| 18 | `Gameplay/Player/Projectile/Projectile.cs` | Shooter. Delete unless props reuse it. |
-| 11 | `Gameplay/Player/PlayerGhost/PlayerGhost.cs` | Ghost layer. Delete. |
-| 8 | `Gameplay/Player/PlayerGhost/PlayerGhostManager.cs` | Ghost layer. Delete. |
-| 8 | `Gameplay/UI/LeaderboardUi.cs` | Deathmatch UI. Delete. |
-| 6 | `Gameplay/UI/InGameHUD.cs` | Rewrite against `NetworkVariable`. |
-| 6 | `Gameplay/VisualEffects/VisualEffectManager.cs` | Strip ECS; the VFX themselves are fine. |
-| 5 | `Gameplay/UI/RespawnScreen.cs` | Deathmatch. Delete or repurpose. |
-| 3 | `Gameplay/Weapon/WeaponData.cs` | Strip `[GhostField]`. |
-| 3 | `UI/SessionInfo/SessionInfo.cs` | Rewrite; the code display is dead under overlay-only invites. |
-| 2 | `Gameplay/VisualEffects/GhostVisualEffect.cs` | Rename off "Ghost"; strip ECS. |
-| 1 | `UI/Game/NetworkStatus.cs` | Point at `NetworkManager`. |
-| 1 | `Gameplay/Player/PlayerGhost/PlayerGhostMonoBehaviour.cs` | Delete with the ghost layer. |
+### 2. Re-wire the two narrowed-scope files once their dependencies exist
 
-The plan says *"Delete the shooter — removing it is not a loss."* Most of this
-table is that deletion.
+`VisualEffectManager` (networked muzzle-flash broadcast) and `InGameHUD` (health/ammo/reticle) both
+need a player-state system — health, equipped weapon, ammo — that doesn't exist anywhere in the NGO
+version of this project yet. Building that (presumably `NetworkVariable`s on a per-player
+`NetworkBehaviour`) is a prerequisite, not part of either file.
 
-### 2. Phase 4 — Player controller and physics
+### 3. Prove one grabbable prop end to end
 
-Not started. `FirstPersonController.cs` is untouched and still carries its
-`[GhostField]` attributes. Follow the plan's salvage list exactly: keep
-`AccumulateJumpAndGravity`, `AccumulateGravity`, `AccumulateJump`,
-`CalculateMovementFromInput`, `UpdateGround`/`GroundedCheck` and the
-`SmoothDamp`/angle helpers — these already run on built-in PhysX and carry over
-directly. Discard every `[GhostField]`, `HandleAnimationEvents`,
-`ApplyInterpolatedClientState` and `SpawnPredictedProjectile`.
+The plan's actual Phase 4 exit criterion, not yet attempted. Gates plans 12, 40, 41 and 47. Needs
+item 4 below (a `NetworkObject` player prefab with a `NetworkTransform`) to exist first, since
+movement doesn't replicate without it.
 
-**Do not rebuild rollback prediction.** Host-authoritative with client-side
-interpolation is what both reference games ship.
-
-Then prove one grabbable prop end to end. That gates plans 12, 40, 41 and 47.
-
-### 3. Scene and prefab wiring — needs the Unity Editor
+### 4. Scene and prefab wiring — needs the Unity Editor
 
 Nothing has been done in-scene. Required:
 
@@ -205,18 +258,22 @@ Nothing has been done in-scene. Required:
   — it pumps `SteamAPI.RunCallbacks()`, which drives lobby callbacks *and* the
   transport's own connection-status callback.
 - Player prefab as a `NetworkObject` + `NetworkBehaviour`, registered in the
-  `NetworkManager` prefab list.
+  `NetworkManager` prefab list. **Also needs a `NetworkTransform` (server-authoritative
+  mode)** — `FirstPersonController` now runs movement server-side every frame but has no
+  way to replicate the result to other clients without one; see the Phase 4 section above.
+- `DamageVisualsController`'s `screenDamageMaterial` and `FirstPersonController`'s
+  `m_Consts` (movement tuning) need real values — current defaults are placeholders.
 - `GameScene.unity` still references the two deleted subscenes; clean that up.
 - Add `GameScene` to build settings if the subscene removal disturbed it.
 
-### 4. Main menu — Phase 5 tail
+### 5. Main menu — Phase 5 tail
 
 `MainMenu.cs` compiles but still offers *Create Game* / *Join by Code* / *Direct
 Connect*. It needs **Host** and **Invite Friends** (`SteamLobby.OpenInviteOverlay()`),
 with direct-connect moved behind a debug flag. `CreationType` has already been
 renamed to `HostSteam` / `JoinSteam` / `HostDirect` / `JoinDirect`.
 
-### 5. Phase 6 — verification, and the plan documents
+### 6. Phase 6 — verification, and the plan documents
 
 Every item in Phase 6 needs two machines on different networks. None of it has
 been done.
