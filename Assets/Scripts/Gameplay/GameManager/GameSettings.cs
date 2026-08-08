@@ -55,7 +55,18 @@ namespace Unity.MP_FPS
             propertyChanged?.Invoke(this, new BindablePropertyChangedEventArgs(property));
 
         public AwaitableCompletionSource CancellableUserInputPopUp;
-        
+
+        /// <summary>
+        /// Why the last session ended, in words a player can act on.
+        /// </summary>
+        /// <remarks>
+        /// Set on every failure path that bounces back to the main menu — Steam not running, host
+        /// quit, lobby full — so the menu can say what happened instead of silently reappearing.
+        /// Consumed and cleared by whatever displays it.
+        /// </remarks>
+        public string LastSessionMessage { get; set; }
+
+
         GlobalGameState m_GameState;
         public GlobalGameState GameState
         {

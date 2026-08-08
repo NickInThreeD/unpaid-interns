@@ -1,143 +1,250 @@
+using System;
+using System.Threading;
 using System.Threading.Tasks;
-using Unity.Networking.Transport;
-using Unity.Services.Authentication;
-using Unity.Services.Core;
-using Unity.Services.Multiplayer;
+using Netcode.Transports;
+using Unity.Netcode;
+using Unity.Netcode.Transports.UTP;
+using UnityEngine;
+#if !DISABLESTEAMWORKS
+using Steamworks;
+#endif
 
 namespace Unity.MP_FPS
 {
     /// <summary>
-    /// This extension methods help with some specificities of the <see cref="ISession"/> interface.
+    /// How this session was established. Replaces the old Relay/Direct <c>NetworkType</c>.
     /// </summary>
-    public static class SessionExtension
+    public enum SessionTransport
     {
-        /// <summary>
-        /// This method is used to know if the current <see cref="ISession"/> is a pure server and not a client.
-        /// </summary>
-        /// <returns>True if the session is only a server and does not have a client, false otherwise.</returns>
-        public static bool IsServer(this ISession session)
-        {
-            return session.IsHost && session.CurrentPlayer?.Id == null;
-        }
+        /// <summary>Steam P2P through a Steam lobby. The shipping path.</summary>
+        Steam = 0,
+
+        /// <summary>Raw UDP over <see cref="UnityTransport"/>. Debug only — see <see cref="GameConnection"/>.</summary>
+        Direct = 1,
     }
 
     /// <summary>
-    /// This class is a wrapper around <see cref="MultiplayerService.Instance"/> session API.
+    /// Owns the act of getting into a session: create or join the Steam lobby, point the transport at
+    /// the host, and start NGO.
     /// </summary>
     /// <remarks>
-    /// The purpose of this class is to encapsulate the need for a custom <see cref="INetworkHandler"/> that we are using
-    /// to retrieve the Listen and Connect <see cref="NetworkEndpoint"/> while connecting through the <see cref="ISession"/> API.
-    /// This is done in order to control the Worlds creation and Connection in <see cref="GameManager.StartGameAsync"/>.
+    /// The predecessor of this class wrapped UGS <c>ISession</c> and existed mainly to extract Relay
+    /// endpoints. None of that survives. What replaces it is smaller because Steam P2P needs no
+    /// endpoint negotiation: the host's SteamID64 <i>is</i> the address.
+    /// <para>
+    /// <b>The direct-connect path is deliberately retained behind a debug flag.</b> It is how you tell
+    /// a transport failure apart from a Steam failure, and it keeps offline iteration possible when
+    /// Steam is down or you are working without a network.
+    /// </para>
     /// </remarks>
     public class GameConnection
     {
-        public ISession Session { get; private set; }
-        public NetworkEndpoint ListenEndpoint { get; private set; }
-        public NetworkEndpoint ConnectEndpoint { get; private set; }
-        public NetworkType SessionConnectionType { get; private set; }
+        /// <summary>How this connection was made.</summary>
+        public SessionTransport Transport { get; private set; }
 
-        public static async Task<GameConnection> CreateorJoinGameAsync()
+        /// <summary>True when this peer is the host (server + local player).</summary>
+        public bool IsHost { get; private set; }
+
+        /// <summary>The host's SteamID64. Zero on the direct-connect debug path.</summary>
+        public ulong HostSteamId { get; private set; }
+
+        /// <summary>The Steam lobby backing this session, as a SteamID64. Zero when not on Steam.</summary>
+        public ulong LobbyId { get; private set; }
+
+        /// <summary>
+        /// Creates a friends-only Steam lobby and starts hosting.
+        /// </summary>
+        public static async Task<GameConnection> HostSteamAsync(CancellationToken cancellationToken = default)
         {
-            var gameConnection = new GameConnection();
-            await StartServicesAsync();
+#if DISABLESTEAMWORKS
+            throw new InvalidOperationException("This build was compiled with DISABLESTEAMWORKS.");
+#else
+            RequireSteam();
 
-            var networkHandler = new EntityNetworkHandler();
-            var options = new SessionOptions()
+            var connection = new GameConnection
             {
-                Name = GameSettings.Instance.SessionName,
-                MaxPlayers = GameManager.MaxPlayer
-            }.WithRelayNetwork().WithNetworkHandler(networkHandler);
-            gameConnection.Session = await MultiplayerService.Instance.CreateOrJoinSessionAsync(options.Name, options);
+                Transport = SessionTransport.Steam,
+                IsHost = true,
+                HostSteamId = SteamManager.LocalSteamId,
+            };
 
-            gameConnection.ConnectEndpoint = await networkHandler.ConnectEndpoint;
-            gameConnection.ListenEndpoint = await networkHandler.ListenEndpoint;
-            gameConnection.SessionConnectionType = await networkHandler.SessionConnectionType;
-            return gameConnection;
-        }
+            var lobby = await SteamLobby.CreateAsync(GameManager.MaxPlayer, cancellationToken);
+            connection.LobbyId = lobby.m_SteamID;
 
-        public static async Task<GameConnection> JoinGameAsync()
-        {
-            var gameConnection = new GameConnection();
-            await StartServicesAsync();
+            cancellationToken.ThrowIfCancellationRequested();
 
-            var networkHandler = new EntityNetworkHandler();
-            JoinSessionOptions options = new JoinSessionOptions();
+            ConfigureSteamTransport(connection.HostSteamId);
 
-
-            options.WithNetworkHandler(networkHandler);
-            gameConnection.Session = await MultiplayerService.Instance.JoinSessionByCodeAsync(ConnectionSettings.Instance.SessionCode, options);
-            gameConnection.ConnectEndpoint = await networkHandler.ConnectEndpoint;
-            gameConnection.ListenEndpoint = await networkHandler.ListenEndpoint;
-            gameConnection.SessionConnectionType = await networkHandler.SessionConnectionType;
-            return gameConnection;
-        }
-        
-        public static GameConnection GetServerConnectionSettings(ushort port)
-        {
-            ConnectionSettings.Instance.Port = port.ToString();
-            var gameConnection = new GameConnection();
-            gameConnection.ListenEndpoint = NetworkEndpoint.AnyIpv4.WithPort(port);
-            gameConnection.ConnectEndpoint = default;
-            gameConnection.SessionConnectionType = NetworkType.Direct;
-            return gameConnection;
-        }
-
-        public static GameConnection GetServerConnectionSettings(NetworkEndpoint listenEndpoint)
-        {
-            ConnectionSettings.Instance.Port = listenEndpoint.Port.ToString();
-            var gameConnection = new GameConnection();
-            gameConnection.ListenEndpoint = listenEndpoint;
-            gameConnection.ConnectEndpoint = default;
-            gameConnection.SessionConnectionType = NetworkType.Direct;
-            return gameConnection;
-        }
-        
-        public static Task<GameConnection> HostGameAsync()
-        {
-            ushort port = ushort.Parse(ConnectionSettings.Instance.Port);
-            var gameConnection = new GameConnection();
-            gameConnection.ListenEndpoint = NetworkEndpoint.AnyIpv4.WithPort(port);
-            gameConnection.ConnectEndpoint = NetworkEndpoint.LoopbackIpv4.WithPort(port);
-            gameConnection.SessionConnectionType = NetworkType.Direct;
-            return Task.FromResult(gameConnection);
-        }
-
-        public static Task<GameConnection> ConnectGameAsync()
-        {
-            ushort port = ushort.Parse(ConnectionSettings.Instance.Port);
-            var gameConnection = new GameConnection();
-            gameConnection.ListenEndpoint = NetworkEndpoint.AnyIpv4;
-            gameConnection.ConnectEndpoint = NetworkEndpoint.Parse(ConnectionSettings.Instance.IPAddress, port);
-            gameConnection.SessionConnectionType = NetworkType.Direct;
-            return Task.FromResult(gameConnection);
-        }
-
-        static async Task StartServicesAsync()
-        {
-            if (UnityServices.State != ServicesInitializationState.Initialized)
+            if (!NetworkManager.Singleton.StartHost())
             {
-                await UnityServices.InitializeAsync();
+                SteamLobby.Leave();
+                throw new InvalidOperationException("Netcode for GameObjects refused to start hosting.");
             }
 
-            if (!AuthenticationService.Instance.IsAuthorized)
-            {
-                await AuthenticationService.Instance.SignInAnonymouslyAsync();
-            }
+            return connection;
+#endif
         }
 
-        static SessionOptions CreateSessionOptions(ConnectionType connectionType, string address, string port)
+        /// <summary>
+        /// Joins an existing session through its Steam lobby.
+        /// </summary>
+        /// <param name="lobbyId">The lobby to join, typically from an overlay invite.</param>
+        public static async Task<GameConnection> JoinSteamAsync(ulong lobbyId, CancellationToken cancellationToken = default)
         {
-            SessionOptions options = new SessionOptions { MaxPlayers = GameManager.MaxPlayer };
-            switch (connectionType)
+#if DISABLESTEAMWORKS
+            throw new InvalidOperationException("This build was compiled with DISABLESTEAMWORKS.");
+#else
+            RequireSteam();
+
+            var connection = new GameConnection
             {
-                case ConnectionType.Relay:
-                    options.WithRelayNetwork();
-                    break;
-                case ConnectionType.Direct:
-                    options.WithDirectNetwork("0.0.0.0", address, ushort.Parse(port));
-                    break;
+                Transport = SessionTransport.Steam,
+                IsHost = false,
+            };
+
+            var lobby = await SteamLobby.JoinAsync(new CSteamID(lobbyId), cancellationToken);
+            connection.LobbyId = lobby.m_SteamID;
+
+            cancellationToken.ThrowIfCancellationRequested();
+
+            // The host publishes its SteamID64 into lobby metadata on creation. Metadata is delivered
+            // with the lobby on entry, so it is readable immediately.
+            var hostSteamId = SteamLobby.GetHostSteamId(lobby);
+            if (hostSteamId == 0ul)
+            {
+                SteamLobby.Leave();
+                throw new InvalidOperationException(
+                    "That session did not advertise a host. It may have already shut down.");
             }
-            return options;
+
+            connection.HostSteamId = hostSteamId;
+            ConfigureSteamTransport(hostSteamId);
+
+            if (!NetworkManager.Singleton.StartClient())
+            {
+                SteamLobby.Leave();
+                throw new InvalidOperationException("Netcode for GameObjects refused to start the client.");
+            }
+
+            return connection;
+#endif
+        }
+
+        /// <summary>
+        /// Starts a host on <see cref="UnityTransport"/> over plain UDP, with no Steam involvement.
+        /// </summary>
+        /// <remarks>Debug path. See the class remarks for why it exists.</remarks>
+        public static Task<GameConnection> HostDirectAsync(CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var port = ParsePort(ConnectionSettings.Instance.Port);
+            var utp = ConfigureDirectTransport();
+            utp.SetConnectionData("0.0.0.0", port);
+
+            if (!NetworkManager.Singleton.StartHost())
+                throw new InvalidOperationException("Netcode for GameObjects refused to start hosting.");
+
+            return Task.FromResult(new GameConnection
+            {
+                Transport = SessionTransport.Direct,
+                IsHost = true,
+            });
+        }
+
+        /// <summary>Connects to a direct-connect host by address and port. Debug path.</summary>
+        public static Task<GameConnection> JoinDirectAsync(CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var settings = ConnectionSettings.Instance;
+            var port = ParsePort(settings.Port);
+            var utp = ConfigureDirectTransport();
+            utp.SetConnectionData(settings.IPAddress, port);
+
+            if (!NetworkManager.Singleton.StartClient())
+                throw new InvalidOperationException("Netcode for GameObjects refused to start the client.");
+
+            return Task.FromResult(new GameConnection
+            {
+                Transport = SessionTransport.Direct,
+                IsHost = false,
+            });
+        }
+
+        /// <summary>
+        /// Tears the session down: stops NGO and leaves the Steam lobby.
+        /// </summary>
+        /// <remarks>
+        /// Leaving the lobby is not optional housekeeping. A member Steam still believes is present
+        /// holds a slot and, at full crew, blocks that same player's own rejoin.
+        /// </remarks>
+        public static void Shutdown()
+        {
+            if (NetworkManager.Singleton != null && NetworkManager.Singleton.IsListening)
+                NetworkManager.Singleton.Shutdown();
+
+#if !DISABLESTEAMWORKS
+            SteamLobby.Leave();
+#endif
+        }
+
+#if !DISABLESTEAMWORKS
+        /// <summary>
+        /// Selects the vendored Steam transport on the <see cref="NetworkManager"/> and points it at
+        /// <paramref name="hostSteamId"/>.
+        /// </summary>
+        static void ConfigureSteamTransport(ulong hostSteamId)
+        {
+            var manager = RequireNetworkManager();
+            var transport = manager.GetComponent<SteamNetworkingSocketsTransport>();
+            if (transport == null)
+                throw new InvalidOperationException(
+                    $"The NetworkManager has no {nameof(SteamNetworkingSocketsTransport)} component. " +
+                    "Add it alongside NetworkManager in the Persistents scene.");
+
+            // Only meaningful for a client; harmless on a host, which never dials out.
+            transport.ConnectToSteamID = hostSteamId;
+            manager.NetworkConfig.NetworkTransport = transport;
+        }
+#endif
+
+        static UnityTransport ConfigureDirectTransport()
+        {
+            var manager = RequireNetworkManager();
+            var transport = manager.GetComponent<UnityTransport>();
+            if (transport == null)
+                throw new InvalidOperationException(
+                    $"The NetworkManager has no {nameof(UnityTransport)} component. " +
+                    "The direct-connect debug path needs it alongside the Steam transport.");
+
+            manager.NetworkConfig.NetworkTransport = transport;
+            return transport;
+        }
+
+        static NetworkManager RequireNetworkManager()
+        {
+            var manager = NetworkManager.Singleton;
+            if (manager == null)
+                throw new InvalidOperationException(
+                    "There is no NetworkManager in the scene. It belongs in Persistents.");
+
+            if (manager.IsListening)
+                throw new InvalidOperationException(
+                    "Netcode is already running. Shut the current session down before starting another.");
+
+            return manager;
+        }
+
+        static ushort ParsePort(string port) =>
+            ushort.TryParse(port, out var parsed) ? parsed : ConnectionSettings.DefaultServerPort;
+
+        static void RequireSteam()
+        {
+            if (!SteamManager.Initialized)
+                throw new InvalidOperationException(
+                    SteamManager.FailureReason ??
+                    "Steam is not running. Start Steam and log in, then try again.");
         }
     }
 }

@@ -1,7 +1,6 @@
 using System;
 using System.Threading.Tasks;
-using Unity.Entities;
-using Unity.NetCode;
+using Unity.Netcode;
 using UnityEngine;
 
 namespace Unity.MP_FPS
@@ -19,7 +18,7 @@ namespace Unity.MP_FPS
                 QuitAsync();
                 return;
             }
-            
+
             if (m_LoadingGameCancel != null)
             {
                 Debug.Log($"[{nameof(ReturnToMainMenuAsync)}] Cancelling loading game.");
@@ -32,30 +31,35 @@ namespace Unity.MP_FPS
                 {
                     // Discarding this exception because we're the one asking for it.
                 }
+                catch (Exception e)
+                {
+                    // The load was already failing; we are tearing down regardless.
+                    Debug.LogException(e);
+                }
                 Debug.Log($"[{nameof(ReturnToMainMenuAsync)}] Loading Cancelled, start returning to main menu.");
             }
-            
+
             LoadingData.Instance.UpdateLoading(LoadingData.LoadingSteps.UnloadingGame);
             GameSettings.Instance.GameState = GlobalGameState.Loading;
-            
+
             GameSettings.Instance.IsPauseMenuOpen = false;
             await DisconnectAndUnloadWorlds();
-            
+
             // Restart the main menu scene.
             Start();
-            
+
             Utils.SetCursorVisible(true);
-            
+
             LoadingData.Instance.UpdateLoading(LoadingData.LoadingSteps.BackToMainMenu);
             GameSettings.Instance.GameState = GlobalGameState.MainMenu;
         }
-        
+
         /// <summary>
         /// Safe shutdown of the game. Saves everything that needs to be saved.
         /// </summary>
         public async void QuitAsync()
         {
-            await LeaveSessionAsync();
+            await DisconnectAndUnloadWorlds();
 
 #if UNITY_EDITOR
             UnityEditor.EditorApplication.isPlaying = false;
@@ -63,96 +67,45 @@ namespace Unity.MP_FPS
             Application.Quit();
 #endif
         }
-    
-        async Task LeaveSessionAsync()
-        {
-            if (GameConnection == null || GameConnection.Session == null)
-            {
-                return;
-            }
 
-            GameConnection.Session.RemovedFromSession -= OnSessionLeft;
-            if (GameConnection.Session.IsHost || GameConnection.Session.IsServer())
-            {
-                //ConnectionSettings.Instance.SessionCode = null;
-            }
-
-            if (GameConnection.Session.IsHost)
-            {
-                await GameConnection.Session.AsHost().DeleteAsync();
-            }
-            else
-            {
-                await GameConnection.Session.LeaveAsync();
-            }
-
-            GameConnection = null;
-        }
-        
-        void OnSessionLeft()
-        {
-            GameConnection = null;
-            ReturnToMainMenuAsync();
-        }
-        
-        static async Task DestroyGameSessionWorlds()
-        {
-            // This prevents the "Cannot dispose world while updating it" error,
-            // allowing us to call this from anywhere.
-            await Awaitable.EndOfFrameAsync();
-
-            // Destroy netcode worlds:
-            for (var i = World.All.Count - 1; i >= 0; i--)
-            {
-                var world = World.All[i];
-                if (world.IsServer() || world.IsClient())
-                {
-                    world.Dispose();
-                }
-            }
-        }
-        
+        /// <summary>
+        /// Shuts the session down: stop netcode, leave the Steam lobby, unload the gameplay scene.
+        /// </summary>
+        /// <remarks>
+        /// Named for its predecessor's job. There are no ECS worlds to destroy any more — NGO's own
+        /// shutdown despawns everything it owns — but the ordering still matters: netcode first, then
+        /// the lobby, then the scene, because unloading a scene NGO still believes it owns logs errors.
+        /// </remarks>
         async Task DisconnectAndUnloadWorlds()
         {
-            NetworkStreamReceiveSystem.DriverConstructor = null;
             ConnectionSettings.Instance.GameConnectionState = ConnectionState.State.Disconnected;
 
-            bool requestedDisconnect = false;
-            foreach (var world in World.All)
-            {
-                if (world.IsClient())
-                {
-                    using var query = world.EntityManager.CreateEntityQuery(ComponentType.ReadOnly<NetworkId>());
-                    if (query.TryGetSingletonEntity<NetworkId>(out var networkId))
-                    {
-                        requestedDisconnect = true;
-                        world.EntityManager.AddComponentData(networkId, new NetworkStreamRequestDisconnect());
-                    }
-                }
-            }
+            UnsubscribeSessionEvents();
 
-            if (requestedDisconnect)
-            {
-                await Awaitable.NextFrameAsync();
-            }
+            GameConnection.Shutdown();
+            GameConnection = null;
 
-            await LeaveSessionAsync();
-            await DestroyGameSessionWorlds();
-            
-            if (GhostBridgeBootstrap.Instance != null)
-            {
-                // Destroy all "Server" and "Client" GameObjects and all their children.
-                Debug.Log($"[{nameof(DisconnectAndUnloadWorlds)}] Destroying multiplayer worlds via GhostBridgeBootstrap.");
-                GhostBridgeBootstrap.Instance.DestroyMultiplayerWorlds();
-            }
-            else
-            {
-                // Fallback in case bootstrap instance is lost
-                Debug.Log($"[{nameof(DisconnectAndUnloadWorlds)}] InvokeAndClearStaticCallbacks");
-                GhostSingleton.InvokeAndClearStaticCallbacks();
-            }
-            
+            // NGO tears down over the following frame; unloading the scene before that races it.
+            await Awaitable.NextFrameAsync();
+
             await ScenesLoader.UnloadGameplayScenesAsync();
+        }
+
+        /// <summary>
+        /// Host went away, or we were disconnected. Report it and get back to the menu rather than
+        /// leaving the player staring at a frozen world.
+        /// </summary>
+        void OnClientStopped(bool wasHost)
+        {
+            if (GameSettings.Instance.GameState == GlobalGameState.MainMenu)
+                return;
+
+            Debug.Log($"[{nameof(OnClientStopped)}] Session ended (wasHost: {wasHost}).");
+
+            if (!wasHost)
+                GameSettings.Instance.LastSessionMessage = "The host ended the session.";
+
+            ReturnToMainMenuAsync();
         }
     }
 }
