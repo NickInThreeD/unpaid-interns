@@ -35,7 +35,8 @@ This is server-authoritative. The phase must be identical for everyone — an in
 
 **Implement settlement**
 
-- On entering `Settling`, enumerate everything registered as banked in the extraction zone, sum its value, and report it to the Run Manager via `RecordQuotaProgress` and `AddCredits`.
+- On entering `Settling`, enumerate everything registered as banked in the extraction zone, sum its value, and report it to the Run Manager via `RecordQuotaProgress` and `AddCredits`. [`43_loot_banking_deposit.md`](43_loot_banking_deposit.md) supplies the enumeration and guarantees the set is stable at that moment; do not re-derive what counts as banked here.
+- Note that banked scrap and **retained equipment** are different states: scrap sells, gear comes home for the next round and pays nothing ([`44_tool_and_equipment_items.md`](44_tool_and_equipment_items.md)). Settlement must read the distinction from the item data rather than treating everything in the zone as revenue, or the store becomes a money printer.
 - Explicitly destroy or ignore unbanked loot so it cannot survive into the next round.
 - Clear every outstanding item claim at teardown, per [`20_networked_interaction_authority.md`](20_networked_interaction_authority.md) — a claim that survives into the next round makes an item permanently unpickable.
 - Apply per-death and unrecovered-body penalties before finalizing the total. Read deaths from the Crew Roster, and apply the disconnect rule from [`24_mid_round_disconnect_handling.md`](24_mid_round_disconnect_handling.md) exactly as that file documents it — a player who dropped must not be double-charged as both a death and a disconnect.
@@ -55,6 +56,7 @@ This is server-authoritative. The phase must be identical for everyone — an in
 - [ ] All interns dying ends the round immediately without waiting for the timer.
 - [ ] All three end conditions produce the same settlement behavior — verified by banking identical loot and comparing payouts.
 - [ ] Loot inside the extraction zone is counted; loot elsewhere is not, and does not persist into the next round.
+- [ ] Equipment left in the extraction zone is retained rather than sold, and contributes nothing to the payout.
 - [ ] Settlement completes before the Run Manager advances the day, verified by log ordering.
 - [ ] Death penalties are applied to the settled total, not to the pre-settlement balance.
 - [ ] Phase transitions fire exactly once per round — no duplicate or repeated events under lag.

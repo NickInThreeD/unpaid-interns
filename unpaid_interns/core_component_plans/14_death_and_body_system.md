@@ -2,7 +2,7 @@
 
 **Source:** [`core_components.md`](../core_components.md) §2 — Player Character
 **Status:** ⚠️ Auto-respawn exists and must be replaced · **[MVP]**
-**Depends on:** Health & Injury, Inventory, Crew Roster, Spectator Mode
+**Depends on:** [Health & Injury](13_health_and_injury.md), [Inventory](40_inventory_item_bar.md), [Crew Roster](19_crew_roster.md), [Spectator Mode](22_spectator_mode.md)
 **Blocks:** monster tuning, death penalties, rescue gameplay
 
 ## Summary
@@ -32,9 +32,11 @@ Death must be permanent for the round, drop what was carried, leave a recoverabl
 
 **Spawn the body**
 
-- Create a body ghost at the death position: a physics ragdoll that can be picked up and carried, almost certainly as a two-handed item so recovery has a real cost.
+- Create a body ghost at the death position: a physics ragdoll that can be picked up and carried, as a two-handed item so recovery has a real cost. Build it on the item ghost path in [`38_item_ghost_networked_item_state.md`](38_item_ghost_networked_item_state.md) and the rule set in [`42_two_handed_item_rule.md`](42_two_handed_item_rule.md) rather than as a parallel implementation — every carry, drop, claim, and contention rule then applies for free, and a bespoke corpse will diverge from them.
+- The body's colliders need the same role-separated layers as items, or a host will see two corpses in one physics scene and the extraction zone will register recovery twice.
+- If the death occurred out of bounds or in unreachable geometry, spawn the body at the nearest valid position instead — otherwise the crew has been handed a recovery objective inside a wall ([`34_out_of_bounds_handling.md`](34_out_of_bounds_handling.md)).
 - Carry the identity of the dead player and, ideally, the cause of death — it is cheap to store and adds enormous flavour when a teammate finds the corpse.
-- Depositing the body in the extraction zone counts as recovery. Leaving the location without it does not.
+- Depositing the body in the extraction zone counts as recovery, using that zone's inside test rather than a second one ([`43_loot_banking_deposit.md`](43_loot_banking_deposit.md)). Leaving the location without it does not.
 
 **Apply the penalties**
 
@@ -64,6 +66,9 @@ Death must be permanent for the round, drop what was carried, leave a recoverabl
 - [ ] `PendingRespawn` is either removed or its remaining purpose is documented.
 - [ ] Two players dying simultaneously produces two bodies and two correct item drops with no roster corruption.
 - [ ] Dying while holding a two-handed item behaves correctly.
+- [ ] The body reuses the item ghost and two-handed carry paths, with no duplicated carry, claim, or contention logic.
+- [ ] A death out of bounds places a recoverable body at the nearest valid position.
+- [ ] Recovery on a host registers exactly once, not once per world.
 - [ ] Every item claim held by the dying player is released, and all dropped items are immediately claimable by anyone.
 - [ ] The dead player's character entity is destroyed; it does not collide, replicate, or attract monster targeting.
 - [ ] Dying while climbing detaches cleanly and drops items at the correct position.

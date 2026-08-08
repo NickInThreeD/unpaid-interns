@@ -2,7 +2,7 @@
 
 **Source:** [`core_components.md`](../core_components.md) §2 — Player Character
 **Status:** ❌ Not started · **[MVP]**
-**Depends on:** Stamina, Inventory, Item Definition
+**Depends on:** [Stamina](11_stamina.md), [Inventory](40_inventory_item_bar.md), [Item Definition](37_item_definition_data_model.md)
 **Blocks:** meaningful loot prioritization, monster interest targeting
 
 ## Summary
@@ -26,6 +26,7 @@ It is a small component that depends on two larger ones. It cannot be finished b
 
 - **Stamina drain multiplier** — the primary effect. A simple normalized factor derived from total weight, multiplied into the sprint drain rate from [`11_stamina.md`](11_stamina.md).
 - **Movement speed penalty** — apply in `FirstPersonController.GetStateConsts` or as a scale on `state.MovementSpeed` in `AccumulateMovement`. The existing `combinedMoveSpeedModifier` local in `AccumulateMovement` is currently hardcoded to `1f` and is exactly the hook this needs.
+- That hook has a second claimant: environmental modifiers such as wading through flood water ([`35_environmental_conditions_weather.md`](35_environmental_conditions_weather.md)) apply at the same point. The two must **compose multiplicatively rather than overwrite**, and whichever lands second must not clobber the first. Establish that here, since this is the component that claims the hook first.
 - Keep both effects continuous rather than stepped. Threshold-based penalties encourage players to sit precisely under a breakpoint, which is fiddly rather than interesting.
 - Consider a maximum carry weight beyond which movement is severely penalized, so there is a natural ceiling without a hard block.
 
@@ -48,6 +49,7 @@ It is a small component that depends on two larger ones. It cannot be finished b
 - [ ] Higher weight measurably increases stamina drain while sprinting.
 - [ ] Higher weight measurably reduces movement speed.
 - [ ] Both effects scale continuously, with no threshold cliff players can sit beneath.
+- [ ] The weight modifier composes with environmental movement modifiers rather than replacing them.
 - [ ] Picking up an item causes no position correction or rubber-band under simulated latency.
 - [ ] Dropping items immediately restores speed and drain rate.
 - [ ] A maximum carry weight is enforced and behaves sensibly at the limit.

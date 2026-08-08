@@ -20,7 +20,7 @@ That lasting consequence is what makes a near-miss meaningful. A player who esca
 - Define a critical-injury threshold below which the player enters an injured state, stored on `PredictedPlayerGhost` — derive it from `CurrentHealth` rather than adding a separate replicated flag, so the two cannot desynchronize.
 - While critically injured: regenerate slowly up to the threshold but no further, block sprinting regardless of stamina, and reduce base movement speed.
 - Add a second, lower threshold that forces a heavy limp — a further speed reduction that makes crossing open ground genuinely dangerous.
-- Require an item or a hub visit to heal above the threshold, so injury persists as a decision rather than resolving itself if you wait.
+- Require an item or a hub visit to heal above the threshold, so injury persists as a decision rather than resolving itself if you wait. The mid-round item is the medical item in [`44_tool_and_equipment_items.md`](44_tool_and_equipment_items.md) — until it exists, injury has no counterplay and the "persists as a decision" framing does not hold, so the two should land together.
 
 **Consider a survival grace rule**
 
@@ -30,8 +30,10 @@ That lasting consequence is what makes a near-miss meaningful. A player who esca
 **Add environmental damage sources**
 
 - **Fall damage is nearly free to implement.** `ControllerState.FallHeight` is already tracked and replicated in `FirstPersonController` — `ShouldUpdateFallHeight` accumulates it during falls and `CachedFallHeight` exposes it — but **nothing consumes it**. Apply banded damage on landing in `GroundedCheck`, where the fall-to-standing transition is already detected.
-- Add drowning and instant-death volumes as separate simple damage sources.
+- Add drowning and instant-death volumes as separate simple damage sources. Drowning is triggered by flood water and terrain water ([`35_environmental_conditions_weather.md`](35_environmental_conditions_weather.md)); note `LayerIndex.Water = 4` already exists and is unused, and is the ready-made volume mechanism.
+- Out-of-bounds kill volumes are a further source and must carry their own classification so they are never attributed to a teammate ([`34_out_of_bounds_handling.md`](34_out_of_bounds_handling.md)).
 - Route everything through one server-side damage entry point so injury rules, penalties, and death handling exist in exactly one place.
+- **Enumerate the sources now**, because the classification is what the friendly-fire policy switches on: `Projectile` (teammate or self), `Monster`, `Fall`, `Drowning`, `Hazard`, `OutOfBounds`. Adding a source later must mean adding an enum value and a multiplier, never a new write site.
 
 **Consolidate the existing damage writes first**
 

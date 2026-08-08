@@ -33,7 +33,7 @@ What is there today is the deathmatch remnant. `Assets/Scripts/Gameplay/UI/Respa
 
 - **Follow** — attach to a living crewmate, cycle with a key. This is the default and the one that keeps players engaged, because it is a story rather than a view.
 - **Free** — detached flight through the location. Useful, and a cheating vector: a free spectator can scout the map and call out monster positions on voice. Coordinate with [`21_proximity_voice_comms.md`](21_proximity_voice_comms.md)'s rule that the living cannot hear the dead. If that rule is not adopted, free-cam must be cut or restricted.
-- Constrain free-cam to the location bounds so spectators cannot fly out of the level and see the generator's seams.
+- Constrain free-cam to the location bounds so spectators cannot fly out of the level and see the generator's seams. Use the bounds volume defined in [`34_out_of_bounds_handling.md`](34_out_of_bounds_handling.md) rather than a second definition — that component computes the assembled interior's real extent inside the load barrier, which a spectator constraint authored before generation cannot know.
 - Handle the case where **nobody is alive to follow**: the round is ending via the total-crew-loss path, so hold the last position and show the round-end state rather than dropping to a null camera.
 
 **Replace the respawn screen**

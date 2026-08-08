@@ -46,7 +46,8 @@ A cheap hybrid worth considering: the employer offers **three destinations per d
 
 **Surface it in the terminal**
 
-- The Terminal / Hub Interface (§9) is where this is presented. Per destination, show what the crew needs to decide: difficulty tier, travel cost, rough loot expectation, and known threats — in-fiction, and deliberately imprecise. An exact expected-value readout turns the choice into arithmetic and removes the gamble.
+- The Terminal / Hub Interface (§9) is where this is presented. Per destination, show what the crew needs to decide: difficulty tier, travel cost, rough loot expectation, known threats, and **the current forecast** ([`35_environmental_conditions_weather.md`](35_environmental_conditions_weather.md)) — in-fiction, and deliberately imprecise. An exact expected-value readout turns the choice into arithmetic and removes the gamble.
+- The forecast is what makes weather a decision rather than a random punishment, and it only works if it is rolled per destination per day *before* the crew chooses. That requires the weather draw to be keyed on the run seed and day number, not rolled at deploy — a constraint that plan carries and this one depends on.
 - Show current credits and quota progress on the same screen. The destination decision is a function of how far behind the crew is, and forcing players to remember the number across two screens just makes them wrong.
 - Announce the committed destination through the repurposed `ActionFeed` so anyone not looking at the terminal still finds out where they are going.
 
@@ -61,7 +62,8 @@ A cheap hybrid worth considering: the employer offers **three destinations per d
 - [ ] The weighted random draw uses the run's seeded random and reproduces identically from the same seed.
 - [ ] Unlock state persists with the run and is wiped on run failure.
 - [ ] Locked destinations are visible and clearly marked as locked.
-- [ ] The terminal shows difficulty, cost, loot expectation, and known threats alongside credits and quota progress.
+- [ ] The terminal shows difficulty, cost, loot expectation, known threats, and the weather forecast alongside credits and quota progress.
+- [ ] The forecast shown before committing matches the condition the crew arrives to.
 - [ ] Loot expectation is presented imprecisely — no exact expected-value figure.
 - [ ] The committed destination is announced to the crew.
 - [ ] Selecting the same destination twice in a run produces a different layout (see the seed component), not a repeat.

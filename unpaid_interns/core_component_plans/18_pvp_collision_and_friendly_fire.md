@@ -29,7 +29,7 @@ The recommendation, stated plainly so it can be argued with: **soft collision on
 - Players are `CharacterController`-based and currently sit on the `ServerPlayer` / `ClientPlayer` layers (`LayerIndex.cs`). Collision between them is governed by the physics layer matrix and by `DisableCharacterDynamicContacts`, which `ServerGameSystem.OnUpdate` destroys on the first update — meaning dynamic contacts are currently enabled.
 - Three options, in increasing order of work: **full solid collision** (simple, and body-blocking a doorway during a chase becomes a real event), **soft push-out** (players slowly displace each other, no hard blocking), or **no collision** (pass through teammates entirely).
 - Recommended: **soft push-out.** It preserves the physical comedy of crowding a corridor while making it impossible to trap a teammate in a dead end and walk away.
-- Whatever is chosen, it constrains level generation: hard collision means the generator must guarantee doorways wide enough for two people fleeing at once, and that is a rule the generator has to be told (§4).
+- Whatever is chosen, it constrains level generation: hard collision means the generator must guarantee doorways wide enough for two people fleeing at once, and that is a rule the generator has to be told ([`28_procedural_interior_generator.md`](28_procedural_interior_generator.md)). Note it is not the only claim on that number — [`30_runtime_navmesh_baking.md`](30_runtime_navmesh_baking.md) sets a minimum width from the largest monster agent radius. **The two must be reconciled into one value in one place, and the larger wins**; two independently-tuned width minimums will silently diverge.
 - Collision must be identical on the predicted client and the server, or players will jitter against each other constantly. This is the most likely source of visible prediction error in the whole game — two predicted characters interacting is strictly harder than one character against static geometry.
 
 **Decide the theft rules**
@@ -58,7 +58,7 @@ The recommendation, stated plainly so it can be argued with: **soft collision on
 - [ ] The chosen collision mode is implemented and documented in this file.
 - [ ] Two players pushing against each other in a doorway produces no jitter, snapping, or prediction correction under simulated latency.
 - [ ] A player cannot permanently trap a teammate in a dead end (or, if full collision is chosen, this is accepted and documented).
-- [ ] Doorway and corridor minimum widths in the generator are stated to match the chosen collision mode.
+- [ ] Doorway and corridor minimum widths in the generator are stated to match the chosen collision mode, reconciled with the navigation agent minimum into a single configured value.
 - [ ] Dropped items and corpses can be picked up by any player; items cannot be taken from a living player's hands.
 - [ ] Friendly fire is disabled in the hub.
 - [ ] The friendly-fire multiplier and collision mode are host-configurable before the run starts.

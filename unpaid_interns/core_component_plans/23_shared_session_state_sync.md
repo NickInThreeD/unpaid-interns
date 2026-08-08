@@ -18,7 +18,8 @@ The architecture already supplies the mechanism. [`01_run_manager.md`](01_run_ma
 **Inventory the shared state**
 
 - Write the list down and keep it in this file. If a value is on it, it is server-owned and replicated; if it is not on it, no UI may display it as authoritative.
-- Currently: `CurrentDay`, `DaysUntilDeadline`, `TeamCredits`, `CurrentQuota`, `QuotaProgress`, `QuotasCompleted`, `RunState`, `RoundPhase`, `RoundStartTick`, selected destination, generation seed, crew roster entries, and banked item totals.
+- Currently: `CurrentDay`, `DaysUntilDeadline`, `TeamCredits`, `CurrentQuota`, `QuotaProgress`, `QuotasCompleted`, `RunState`, `RoundPhase`, `RoundStartTick`, `SelectedLocationId`, `WeatherId` ([`35_environmental_conditions_weather.md`](35_environmental_conditions_weather.md)), `RunSeed` and `RoundSeed`, crew roster entries, power zone flags ([`36_lighting_and_power_grid.md`](36_lighting_and_power_grid.md)), and the banked total.
+- Note the banked total is **derived from currently-banked items rather than accumulated** ([`43_loot_banking_deposit.md`](43_loot_banking_deposit.md)), which is this file's derive-rather-than-replicate rule applied to the number the crew cares about most. Per-item banked flags are item ghost state, not session state; only the aggregate belongs on this list.
 - Everything else is either per-player predicted state (stamina, held items) or pure presentation (fear intensity, scan highlights). Those must **never** be promoted to shared state without appearing on this list first.
 
 **Enforce the write rule**

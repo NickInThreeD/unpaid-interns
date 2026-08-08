@@ -27,16 +27,18 @@ This plan is the first to add a new input verb, so it also establishes the input
 
 Several later components add verbs, and a silently duplicated bit produces two verbs that fire together with no compile error. Claim bits here and keep this table current:
 
-| Bit | Flag | Component |
-| --- | --- | --- |
-| `1 << 0` | `Jump` | exists |
-| `1 << 1` | `Shoot` | exists |
-| `1 << 2` | `Sprint` | this component |
-| `1 << 3` | `Reload` | exists |
-| `1 << 4` | `Crouch` | [`10_crouch.md`](10_crouch.md) |
-| `1 << 5` | `Interact` | Interaction System (§5) |
-| `1 << 6` | `Drop` | Inventory (§5) |
-| `1 << 7` | `Scan` | [`16_player_scanner_ping_tool.md`](16_player_scanner_ping_tool.md) |
+| Bit | Flag | Semantics | Component |
+| --- | --- | --- | --- |
+| `1 << 0` | `Jump` | edge | exists |
+| `1 << 1` | `Shoot` | held | exists — also carries "use held item" ([`44_tool_and_equipment_items.md`](44_tool_and_equipment_items.md)) |
+| `1 << 2` | `Sprint` | held | this component |
+| `1 << 3` | `Reload` | edge | exists |
+| `1 << 4` | `Crouch` | edge or held | [`10_crouch.md`](10_crouch.md) |
+| `1 << 5` | `Interact` | held, press edge derived server-side | [`41_interaction_system.md`](41_interaction_system.md) |
+| `1 << 6` | `Drop` | edge, tick-stamped | [`40_inventory_item_bar.md`](40_inventory_item_bar.md) |
+| `1 << 7` | `Scan` | edge, cooldown-gated | [`16_player_scanner_ping_tool.md`](16_player_scanner_ping_tool.md) |
+
+**Not everything belongs in this table.** A verb whose input is a *value* rather than an on/off state must be a field on `PlayerInput`, not a bit — because a bit can only accumulate, and a value can be replayed idempotently. The known case is inventory slot selection, which [`40_inventory_item_bar.md`](40_inventory_item_bar.md) sends as an **absolute `SelectedSlot` index** precisely so that a replayed tick reselects the same slot instead of scrolling again. Adding a "next slot" bit would be the natural-looking mistake and would break under reconciliation. Any future verb that means "change by an amount" has the same problem and the same fix.
 
 **Understand how the input stream accumulates — every later verb depends on this**
 

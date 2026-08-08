@@ -2,7 +2,7 @@
 
 **Source:** [`core_components.md`](../core_components.md) §2 — Player Character
 **Status:** ❌ Not started
-**Depends on:** Item Ghost / Networked Item State, Entry Point / Extraction Zone
+**Depends on:** [Item Ghost / Networked Item State](38_item_ghost_networked_item_state.md), [Entry Point / Extraction Zone](31_entry_point_extraction_zone.md)
 **Blocks:** navigability of procedural interiors, informed risk decisions
 
 ## Summary
@@ -33,7 +33,8 @@ Build it as an always-available player ability rather than a purchasable tool. T
 **Report the value honestly — from the server**
 
 - Total scanned value is the one part that must not be client-computed from client-visible data, because rolled item values are server-authoritative (see the Item Ghost component in §5) and a client that can read them all can trivially build a loot radar.
-- Two options: replicate rolled value only on items within genuine scan range using ghost relevancy, or have the client send a scan request RPC and the server reply with an aggregate. The relevancy approach is cheaper per-scan and aligns with the bandwidth work in §13; pick it unless profiling says otherwise.
+- Two options: replicate rolled value only on items within genuine scan range using ghost relevancy, or have the client send a scan request RPC and the server reply with an aggregate. The relevancy approach is cheaper per-scan and aligns with the bandwidth work in §13; pick it unless profiling says otherwise. [`38_item_ghost_networked_item_state.md`](38_item_ghost_networked_item_state.md) adopts the relevancy option, so this is settled unless that plan changes.
+- One consequence to design around: relevancy means an item's value **arrives shortly after it becomes relevant**, not instantly. A scan fired the moment a player rounds a corner may report a lower total than the same scan a second later. Either delay the aggregate by a frame or two, or size the relevancy radius comfortably beyond the scan range so values are already present when the pulse fires. The second is simpler and is the recommendation.
 - Report the aggregate ("3 items · 240 credits") rather than per-item values on the HUD by default. It reads faster, and it keeps the player deciding about a *room* rather than pixel-hunting individual props.
 
 **Render the highlights**
@@ -46,7 +47,7 @@ Build it as an always-available player ability rather than a purchasable tool. T
 **Make it work in the dark**
 
 - Highlights must be legible with the power cut and no flashlight — that is the case where the scanner matters most.
-- Verify against the Lighting & Power Grid component in §4: a scan during a blackout should still find the exit.
+- Verify against [`36_lighting_and_power_grid.md`](36_lighting_and_power_grid.md): a scan during a blackout should still find the exit. That plan carries the matching requirement, so the two must be tested together rather than each assuming the other handled it.
 
 ## Acceptance Criteria
 
@@ -62,3 +63,5 @@ Build it as an always-available player ability rather than a purchasable tool. T
 - [ ] The scan sound either registers in the noise system or is documented as silent, deliberately.
 - [ ] Scanning in a fully-populated location does not spike frame time; the query is bounded by range, not by total item count.
 - [ ] Two players scanning simultaneously each see only their own highlights.
+- [ ] A scan fired immediately on entering a room reports the same total as one fired a second later; relevancy timing never under-reports.
+- [ ] The two-handed rule's scanner permission matches the decision recorded in [`42_two_handed_item_rule.md`](42_two_handed_item_rule.md).

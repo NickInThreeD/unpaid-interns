@@ -3,7 +3,7 @@
 **Source:** [`core_components.md`](../core_components.md) §4 — Location & World Generation
 **Status:** ❌ Not started · **[MVP]**
 **Depends on:** Data-Driven Configuration
-**Blocks:** Location Selection, Procedural Interior Generator, Loot Spawner, Spawn Director, Store
+**Blocks:** Location Selection, Procedural Interior Generator, Loot Spawner, Spawn Director, Weather, Alternate Exits, Exterior Approach Area, Store
 
 ## Summary
 
@@ -28,8 +28,9 @@ The pattern is already established: `WeaponData` ScriptableObjects with a `Weapo
 - **Identity** — id, display name, a short in-fiction description for the terminal, difficulty tier.
 - **Generation** — size multiplier (drives interior extent), interior layout set (which room-module collection to assemble from), guaranteed features (fire exit count, whether a breaker box exists), and any per-location day-length override, which [`03_round_timer_clock.md`](03_round_timer_clock.md) already anticipates.
 - **Economy** — minimum and maximum item count, a loot table with per-item rarity weights, and travel cost in credits.
-- **Threat** — a monster power budget, split into indoor and outdoor pools so an open exterior and a cramped interior can be tuned independently, plus which monsters are eligible here at all.
-- **Presentation** — a `LightingProfile` reference (the type already exists at `Assets/Scripts/Gameplay/VisualEffects/LightingProfile.cs` with an applier, and is the ready-made hook for per-location mood), an ambience `SoundDef` set, and the eligible weather set.
+- **Threat** — a monster power budget, split into indoor and outdoor pools so an open exterior and a cramped interior can be tuned independently, plus which monsters are eligible here at all. Validate eligibility against navigation: a monster whose agent radius exceeds what this location's layout set can accommodate must be rejected at authoring time, not discovered as a monster stuck in a doorway ([`30_runtime_navmesh_baking.md`](30_runtime_navmesh_baking.md)).
+- **World** — the exterior scene reference ([`33_exterior_approach_area.md`](33_exterior_approach_area.md)), the alternate-exit count ([`32_alternate_exits.md`](32_alternate_exits.md)), whether the location has a power grid ([`36_lighting_and_power_grid.md`](36_lighting_and_power_grid.md)), and the location's maximum bounds extent ([`34_out_of_bounds_handling.md`](34_out_of_bounds_handling.md)).
+- **Presentation** — a `LightingProfile` reference (the type already exists at `Assets/Scripts/Gameplay/VisualEffects/LightingProfile.cs` with an applier, and is the ready-made hook for per-location mood — but read the limits documented in [`35_environmental_conditions_weather.md`](35_environmental_conditions_weather.md) before relying on the applier as written), an ambience `SoundDef` set, and the eligible weather set.
 - Resist adding a raw "difficulty number" that does nothing. The reference design's risk rating is explicitly cosmetic; if a field has no mechanical consumer, mark it as flavour so nobody tunes against it expecting an effect.
 
 **Keep loot and threat honest against each other**
@@ -57,6 +58,8 @@ The pattern is already established: `WeaponData` ScriptableObjects with a `Weapo
 - [ ] Every property has a named consumer, or is explicitly marked as flavour.
 - [ ] Size multiplier, item count range, monster power budget, and travel cost all measurably change a round.
 - [ ] Indoor and outdoor monster budgets are tunable independently.
+- [ ] A monster whose agent size a location's layout set cannot accommodate is rejected at authoring time.
+- [ ] Every location declares its exterior scene, alternate-exit count, power-grid presence, and maximum bounds extent.
 - [ ] A per-location day-length override is honoured by the round clock.
 - [ ] A `LightingProfile` and ambience set apply per location.
 - [ ] Weather affects difficulty only, never loot count or value.

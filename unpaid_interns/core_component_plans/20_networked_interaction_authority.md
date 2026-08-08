@@ -2,7 +2,7 @@
 
 **Source:** [`core_components.md`](../core_components.md) §3 — Multiplayer & Team
 **Status:** ❌ Not started · **[MVP]**
-**Depends on:** Item Ghost / Networked Item State, Interaction System
+**Depends on:** [Item Ghost / Networked Item State](38_item_ghost_networked_item_state.md), [Interaction System](41_interaction_system.md)
 **Blocks:** Inventory, Loot Banking, Door System, body recovery, every co-op interaction
 
 ## Summary
@@ -19,10 +19,11 @@ The hard requirement is that a failed prediction must be *cheap and legible*. A 
 
 **Put a claim on the item ghost**
 
-- Add to the item's replicated state (see the Item Ghost component in §5) a `HeldByNetworkId` field and a `ClaimTick`, both `[GhostField]`. An unheld item has an invalid owner id.
+- Add to the item's replicated state ([`38_item_ghost_networked_item_state.md`](38_item_ghost_networked_item_state.md)) a `HeldByNetworkId` field and a `ClaimTick`, both `[GhostField]`. An unheld item has an invalid owner id.
 - The server resolves contention by tick: the earliest `ClaimTick` wins, and ties break on the lower `NetworkId` so the result is deterministic rather than dependent on iteration order.
 - Never resolve contention on the client. A client may *predict* it won, but the server decides.
 - Keep the claim on the item, not on the player. An item is the contended resource, and putting the claim anywhere else means reconstructing it from inventory state on every query.
+- **`NetworkId` is a routing key, not an identity** — [`19_crew_roster.md`](19_crew_roster.md) establishes this, and netcode reassigns ids as connections come and go. A claim keyed on `NetworkId` alone has a real failure mode: a player drops while holding an item, a new connection is later assigned the same id, and inherits a claim it never made. Mitigate by clearing every claim held by a `NetworkId` **at the moment of disconnect** rather than at grace-window expiry ([`24_mid_round_disconnect_handling.md`](24_mid_round_disconnect_handling.md) already requires exactly this timing, and this is why). `NetworkId` remains the right field on the wire — it is compact and it is what the server resolves against live connections — but nothing may assume it survives a disconnect.
 
 **Define the request path**
 
@@ -43,7 +44,7 @@ The hard requirement is that a failed prediction must be *cheap and legible*. A 
 - **Drop and throw** — the reverse claim. The server clears `HeldByNetworkId` and spawns the item at a validated position; a client cannot choose an arbitrary drop location.
 - **Doors** — shared state, not per-player. Two players opening a door on the same tick must produce one open door, not a toggle that lands closed. Make door state absolute (`Open` / `Closed`), never a toggle command, so simultaneous requests converge. See the Door System in §7.
 - **Bodies** — recovery is a pickup of a two-handed item, so it inherits this whole path. Verify it against the case of two players grabbing the same corpse.
-- **Banking** — depositing in the extraction zone clears the holder and sets the banked flag. This is the only transition that must be exactly-once, because it converts to money.
+- **Banking** — depositing in the extraction zone clears the holder and sets the banked flag ([`43_loot_banking_deposit.md`](43_loot_banking_deposit.md)). This is the only transition that must be exactly-once, because it converts to money.
 
 **Handle the ugly cases**
 
@@ -70,6 +71,7 @@ The hard requirement is that a failed prediction must be *cheap and legible*. A 
 - [ ] Two players opening the same door on the same tick leaves it open, not closed.
 - [ ] Banking an item is exactly-once — an item cannot be counted twice under lag or duplicate requests.
 - [ ] A holder dying or disconnecting releases the claim and leaves the item recoverable in the world.
+- [ ] Claims are cleared at the moment of disconnect, and a later connection assigned the same `NetworkId` inherits no claim.
 - [ ] No claim survives a round transition.
 - [ ] Grants and rejections are logged server-side with enough detail to reconstruct a contested pickup.
 - [ ] Four players repeatedly grabbing at one item under simulated latency for a minute produces no duplicates, no orphans, and no roster or inventory corruption.

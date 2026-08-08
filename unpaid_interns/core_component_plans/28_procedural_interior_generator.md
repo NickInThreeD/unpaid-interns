@@ -3,7 +3,7 @@
 **Source:** [`core_components.md`](../core_components.md) §4 — Location & World Generation
 **Status:** ❌ Not started · **[MVP]**
 **Depends on:** Location Catalogue, Deterministic Generation Seed, Location Load / Unload Flow
-**Blocks:** Loot Spawner, Runtime NavMesh Baking, Spawn Points / Vents, Alternate Exits, Door System
+**Blocks:** [Runtime NavMesh Baking](30_runtime_navmesh_baking.md), [Entry Point / Extraction Zone](31_entry_point_extraction_zone.md), [Alternate Exits](32_alternate_exits.md), [Lighting & Power Grid](36_lighting_and_power_grid.md), [Loot Spawner](39_loot_spawner.md), Spawn Points / Vents, Door System
 
 ## Summary
 
@@ -39,15 +39,16 @@ Read [`Assets/docs/world/interior.md`](../../Assets/docs/world/interior.md) befo
 
 **Honour the four customers explicitly**
 
-- **NavMesh** — decide the baking strategy *before* the module set is authored. Baking the whole assembled interior at once is simplest and slowest; pre-baking per-module NavMesh and stitching at connection points is far faster and constrains modules to align exactly at their seams. That constraint has to exist in the prefabs from day one. The component covering this is Runtime NavMesh Baking (§4), and it is explicitly flagged as *do not defer*.
-- **Loot points** — author tagged spawn transforms in each module with a category (floor, shelf, hidden, high-value) and let the loot spawner draw against them. Placing loot by raycasting the finished geometry produces items in walls.
+- **NavMesh** — decide the baking strategy *before* the module set is authored. Baking the whole assembled interior at once is simplest and slowest; pre-baking per-module NavMesh and stitching at connection points is far faster and constrains modules to align exactly at their seams. That constraint has to exist in the prefabs from day one. [`30_runtime_navmesh_baking.md`](30_runtime_navmesh_baking.md) recommends the stitched approach and fixes the agent radii; **no corridor may be narrower than the largest agent that can spawn in the location**, reconciled with the doorway-width requirement the collision mode places on the generator in [`18_pvp_collision_and_friendly_fire.md`](18_pvp_collision_and_friendly_fire.md).
+- **Loot points** — author tagged spawn transforms in each module with a category (floor, shelf, hidden, high-value) and let the loot spawner draw against them ([`39_loot_spawner.md`](39_loot_spawner.md)). Placing loot by raycasting the finished geometry produces items in walls. Compute each point's **path distance from the extraction zone** during assembly and publish it — that number is what the spawner uses to build the risk gradient, and it is far cheaper to record here than to recover afterwards.
+- **Power zones** — tag each module with a power zone id so lighting can be cut by area rather than per light ([`36_lighting_and_power_grid.md`](36_lighting_and_power_grid.md)), and reserve eligible rooms for the breaker box.
 - **Vents / emergence points** — likewise authored per module, with a rule that none may be within a minimum distance of the entrance.
 - **Doors** — every connection between modules is a candidate door. Doors are networked state (§7) and each one is a ghost, so the generator's door count directly sets a bandwidth floor. Budget it deliberately rather than putting a door in every opening.
 
 **Place the fixed features**
 
-- Exactly one **main entrance** with a dedicated starting room that has at least one exit, positioned to define the map's risk gradient — the extraction point's location is what makes the far corner of the building expensive.
-- At least one **fire exit** dropping into a random part of the map. This is the Alternate Exits component (§4) and the generator is where the placement rule lives: far from the main entrance, measured by path distance rather than straight-line distance.
+- Exactly one **main entrance**, attaching to the exterior scene's entrance socket ([`33_exterior_approach_area.md`](33_exterior_approach_area.md)), with a dedicated starting room that has at least one exit. The extraction zone sits at or just outside it ([`31_entry_point_extraction_zone.md`](31_entry_point_extraction_zone.md)), and its position is what makes the far corner of the building expensive.
+- Alternate exits per the location's declared count, dropping into a random part of the map. [`32_alternate_exits.md`](32_alternate_exits.md) owns the semantics and the generator owns the placement rule: far from the main entrance, measured by path distance rather than straight-line distance, with the exterior end fixed in the location's authored exterior.
 - A **breaker box** if the location has a power grid, placed somewhere inconvenient enough that restoring power is a decision.
 - Cap vertical extent to what the Climbing & Verticality component ([`17_climbing_and_verticality.md`](17_climbing_and_verticality.md)) can actually traverse. A generator that builds a shaft with no ladder has built a trap.
 
@@ -76,6 +77,10 @@ Read [`Assets/docs/world/interior.md`](../../Assets/docs/world/interior.md) befo
 - [ ] Exactly one main entrance exists, with a dedicated starting room with at least one exit.
 - [ ] At least one fire exit exists, placed far from the main entrance by path distance.
 - [ ] Loot points, vent points, and door candidates are authored per module and are present and correctly categorized in the assembled layout.
+- [ ] Every loot point carries its path distance from the extraction zone, computed during assembly.
+- [ ] Every module carries a power zone id, and the breaker box is placed in an eligible room.
+- [ ] No corridor or doorway is narrower than the largest eligible monster agent, and the width also satisfies the collision-mode requirement.
+- [ ] The interior attaches cleanly to the exterior's entrance socket with no gap or interpenetration.
 - [ ] No vent point is within the minimum distance of the entrance.
 - [ ] The layout bakes a valid NavMesh with no unreachable islands (verified once Runtime NavMesh Baking lands).
 - [ ] Vertical connections are always traversable by the player's available movement verbs.

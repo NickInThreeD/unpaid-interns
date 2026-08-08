@@ -27,6 +27,7 @@ Because the quota is collective and the failure condition applies to the whole c
 - Declare an `IComponentData` struct with `[GhostField]` on each replicated value: `CurrentDay`, `DaysUntilDeadline`, `TeamCredits`, `CurrentQuota`, `QuotaProgress`, `QuotasCompleted`, and a `RunState` enum (`NotStarted` / `InProgress` / `Failed` / `Succeeded`).
 - Also carry the two values that decide what the *next* round is, because every client needs them before the location loads and both must come from one place:
   - `SelectedLocationId` — the destination, resolved locally against the Location Registry ([`26_location_catalogue.md`](26_location_catalogue.md), [`27_location_selection_assignment.md`](27_location_selection_assignment.md)). Only the id crosses the wire.
+  - `WeatherId` — the round's environmental condition, resolved the same way against the weather registry ([`35_environmental_conditions_weather.md`](35_environmental_conditions_weather.md)). It must arrive with the destination, before the load begins, for the same reason.
   - `RunSeed` and the derived `RoundSeed` — the source of every random decision in the round ([`29_deterministic_generation_seed.md`](29_deterministic_generation_seed.md)). This must be a ghost field, not a one-shot RPC, or a late joiner generates a different building.
 - The crew roster ([`19_crew_roster.md`](19_crew_roster.md)) is a ghost dynamic buffer and should live on this same manager unless it grows large — one fewer prefab to register, and the two are always read together.
 - Keep every field a blittable value type — no strings, no managed references. Use `FixedString` types if text is ever required.
@@ -57,7 +58,7 @@ Because the quota is collective and the failure condition applies to the whole c
 - [ ] Advancing past the deadline with quota unmet sets `RunState` to `Failed` on all clients.
 - [ ] Advancing past the deadline with quota met increments `QuotasCompleted`, raises the quota, and resets the cycle.
 - [ ] State survives a full round transition — values are not reset by loading or unloading a location.
-- [ ] `SelectedLocationId` and `RoundSeed` are replicated and correct on every client before the location load begins, including for a client that joins mid-round.
+- [ ] `SelectedLocationId`, `WeatherId`, and `RoundSeed` are replicated and correct on every client before the location load begins, including for a client that joins mid-round.
 - [ ] Every replicated field appears in the shared-state inventory in [`23_shared_session_state_sync.md`](23_shared_session_state_sync.md).
 - [ ] Entering and exiting play mode repeatedly in the Editor produces no leaked static state and no duplicate instances.
 - [ ] Debug commands for granting credits and forcing day advance work and are usable from a build.

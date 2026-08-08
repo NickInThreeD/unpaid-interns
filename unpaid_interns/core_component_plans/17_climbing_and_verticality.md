@@ -2,7 +2,7 @@
 
 **Source:** [`core_components.md`](../core_components.md) §2 — Player Character
 **Status:** ❌ Not started
-**Depends on:** Crouch (movement-state pattern), Two-Handed Item Rule
+**Depends on:** [Crouch](10_crouch.md) (movement-state pattern), [Two-Handed Item Rule](42_two_handed_item_rule.md), [Interaction System](41_interaction_system.md)
 **Blocks:** multi-level interiors, deployable-ladder gear, fall-damage counterplay
 
 ## Summary
@@ -40,12 +40,13 @@ The reason this component earns its place beyond traversal is the **interaction 
 
 - Block climbing entirely while holding a two-handed item, with a clear prompt explaining why. Silent refusal will read as a bug.
 - Decide whether a one-handed item is retained while climbing. Retaining it is more forgiving and avoids accidental loot loss; forcing a drop is more dramatic. Recommended: retain, and let the two-handed rule carry the tension.
-- Coordinate with the Interaction System (§5): the interact verb is shared between "climb this" and "pick that up", so targeting priority must be defined once, in one place.
+- Coordinate with [`41_interaction_system.md`](41_interaction_system.md): the interact verb is shared between "climb this" and "pick that up", so targeting priority must be defined once, in one place — that file owns the priority order, and a ladder declares its priority as data rather than special-casing the raycast here.
 
 **Deployable ladders as gear**
 
-- §5 lists a ladder as purchasable equipment. Reuse the same climb volume, spawned at runtime by the item rather than by the generator.
+- [`44_tool_and_equipment_items.md`](44_tool_and_equipment_items.md) lists a ladder as purchasable equipment. Reuse the same climb volume, spawned at runtime by the item rather than by the generator.
 - A deployed ladder is world state: it must be a ghost so every client sees it, it must survive its owner's death, and it must be cleaned up on round end.
+- A deployed ladder also creates a **navigation link** that did not exist when the interior was baked. [`30_runtime_navmesh_baking.md`](30_runtime_navmesh_baking.md) requires that link to be added on placement and removed at round end, with per-monster traversal permissions — so deploying a ladder can hand a monster a route the crew did not intend to open. That is a good mechanic and a terrible surprise; decide which it is and telegraph it.
 
 **Presentation**
 
@@ -65,6 +66,7 @@ The reason this component earns its place beyond traversal is the **interaction 
 - [ ] Two players can use the same ladder simultaneously, or the rule preventing it is enforced and explained.
 - [ ] Remote clients see a climbing teammate in the correct pose.
 - [ ] A deployed ladder item replicates to all clients, persists after its owner dies, and is cleaned up at round end.
+- [ ] A deployed ladder adds a navigation link on placement and removes it at round end, and which monsters may use it is data, not an accident.
 - [ ] Procedurally-placed ladders exist on server and client worlds before the round begins.
 - [ ] Climbing noise registers in the noise system at a lower level than walking.
 - [ ] Dying while climbing drops the player and their items correctly, per [`14_death_and_body_system.md`](14_death_and_body_system.md).
