@@ -1,6 +1,7 @@
 # Note — Join-by-Code Is Unreachable
 
 **Status:** Not started. Wire before the first real playtest.
+**Superseded by:** [`core_component_plans/91_join_by_code.md`](core_component_plans/91_join_by_code.md), which is the canonical plan. This note remains as its source; the evidence below was re-verified against the code and is accurate. One addition since it was written: `ConnectionSettings.cs:136,162` already implement `IsSessionCodeFormatValid` and `CheckIsSessionCodeFormatValid`, so input validation is scaffolded too.
 
 ## The problem
 

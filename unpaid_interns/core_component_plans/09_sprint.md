@@ -3,7 +3,9 @@
 **Source:** [`core_components.md`](../core_components.md) §2 — Player Character
 **Status:** ⚠️ Constants exist, never applied · **[MVP]**
 **Depends on:** nothing
-**Blocks:** Stamina, Carry Weight, noise emission, monster perception, every later input verb
+**Blocks:** [Stamina](11_stamina.md), [Carry Weight](12_carry_weight.md), [Noise Emission](54_noise_emission_system.md), [Perception](53_perception_system.md), every later input verb
+
+> **This file is the input-pipeline registry.** The OR-accumulating, replay-safe behaviour documented below applies to every verb added later, and the bit-allocation table is the only place bits are claimed. [`10_crouch.md`](10_crouch.md), [`16_player_scanner_ping_tool.md`](16_player_scanner_ping_tool.md), [`40_inventory_item_bar.md`](40_inventory_item_bar.md), [`41_interaction_system.md`](41_interaction_system.md), and [`44_tool_and_equipment_items.md`](44_tool_and_equipment_items.md) all reference it rather than restating it.
 
 ## Summary
 

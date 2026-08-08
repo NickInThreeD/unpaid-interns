@@ -2,7 +2,7 @@
 
 **Source:** [`core_components.md`](../core_components.md) §2 — Player Character
 **Status:** ⚠️ Damage vignette exists and can be extended
-**Depends on:** Health & Injury, Death & Body System, Perception System (for "being hunted")
+**Depends on:** [Health & Injury](13_health_and_injury.md), [Death & Body System](14_death_and_body_system.md), [Threat / Interest Targeting](56_threat_interest_targeting.md) (for "being hunted"), [Lighting & Power Grid](36_lighting_and_power_grid.md) (for the darkness term)
 **Blocks:** nothing mechanically — but it is what makes the horror land
 
 ## Summary

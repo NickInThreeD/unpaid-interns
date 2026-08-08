@@ -39,7 +39,7 @@ Gameplay physics is built-in PhysX, and in a host process the server world and t
 - Add `ServerItem` and `ClientItem` to `LayerIndex.cs` — indices 9 and above are free — and assign the layer by role when the item ghost links, mirroring `PlayerGhost`.
 - Every consumer then masks explicitly: the interaction raycast on the client hits `ClientItem` only ([`41_interaction_system.md`](41_interaction_system.md)); the server's validation and the extraction zone's inside test consider `ServerItem` only ([`31_entry_point_extraction_zone.md`](31_entry_point_extraction_zone.md), [`43_loot_banking_deposit.md`](43_loot_banking_deposit.md)).
 - Without this, a host banks every item twice, the interaction raycast picks whichever copy the physics query happened to return first, and none of it reproduces on a dedicated server — which is the worst possible bug profile.
-- Extend the layer set to bodies and any other spawned interactable at the same time, rather than adding a pair per component later.
+- Extend the layer set to bodies, monsters, and any other spawned interactable at the same time, rather than adding a pair per component later. [`49_monster_ghost_and_replication.md`](49_monster_ghost_and_replication.md), [`14_death_and_body_system.md`](14_death_and_body_system.md), [`31_entry_point_extraction_zone.md`](31_entry_point_extraction_zone.md), [`41_interaction_system.md`](41_interaction_system.md), [`57_attack_and_damage_application.md`](57_attack_and_damage_application.md), and [`59_static_map_hazards.md`](59_static_map_hazards.md) all depend on this split — **define the whole set here, once.** `LayerIndex` currently uses indices 0–8, so 9 upward are free.
 
 **Roll the value on the server, and do not give it away**
 

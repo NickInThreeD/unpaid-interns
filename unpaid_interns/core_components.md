@@ -225,8 +225,12 @@ Items that don't belong to a single gameplay system but block a finished product
 
 ## 14. Shared Package Integration
 
+These are the same two items listed in §11 and are planned there — see [`85_eventbus_integration.md`](core_component_plans/85_eventbus_integration.md) and [`86_savesystem_integration.md`](core_component_plans/86_savesystem_integration.md). They are repeated here because acquiring them is a prerequisite that sits outside any one system.
+
 - ❌ **EventBus** — Required by project convention for all event-driven communication. Must be read and referenced before designing the noise, damage, or phase-event systems.
 - ❌ **SaveSystem** — Required by project convention for all persistence. Must be read and referenced before implementing run-state saving.
+
+**Both live in a different repository** (`HiddenObject`), so this is an acquisition problem before it is an integration problem. `SaveSystem.asmdef` references `Packages.EventBus`, so EventBus is the leaf dependency and arrives first; the acquisition method — submodule, embedded package, or copy — should be decided once for both.
 
 ## 15. Suggested Build Order
 

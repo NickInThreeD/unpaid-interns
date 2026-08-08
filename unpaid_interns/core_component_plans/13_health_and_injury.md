@@ -2,8 +2,10 @@
 
 **Source:** [`core_components.md`](../core_components.md) §2 — Player Character
 **Status:** ⚠️ Health exists, injury layer does not · **[MVP]**
-**Depends on:** Stamina (injury gates sprinting)
-**Blocks:** Death & Body System, monster threat targeting, fall damage
+**Depends on:** [Stamina](11_stamina.md) (injury gates sprinting)
+**Blocks:** [Death & Body System](14_death_and_body_system.md), [PvP / Friendly Fire](18_pvp_collision_and_friendly_fire.md), [Attack & Damage Application](57_attack_and_damage_application.md), [Fall & Environmental Damage](61_fall_and_environmental_damage.md), [Static Map Hazards](59_static_map_hazards.md), [Out-of-Bounds Handling](34_out_of_bounds_handling.md)
+
+> **This component's single damage entry point is a prerequisite for six others.** Every damage source in the game — projectiles, monsters, falls, drowning, hazards, out-of-bounds — routes through `ApplyDamage(target, amount, source)`, and each of those plans says so. Consolidating the two existing direct writes in `Projectile.cs` **before** adding any new source is what keeps injury rules, the friendly-fire multiplier, and death penalties applied in one place instead of seven.
 
 ## Summary
 
