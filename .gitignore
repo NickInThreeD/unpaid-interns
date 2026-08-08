@@ -104,3 +104,9 @@ InitTestScene*.unity*
 
 # Auto-generated cache in Assets folder
 /[Aa]ssets/[Ss]ceneDependencyCache*
+
+# Steam
+# Written into the project root by Steamworks.NET on import, containing 480
+# (Spacewar) until a real App ID exists. Must never reach a depot upload:
+# Steam rejects builds that ship it, and it would override the real App ID.
+/steam_appid.txt
