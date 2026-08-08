@@ -58,6 +58,13 @@ The reference design's catalogue ([`Assets/docs/detection-and-combat/audible-sou
 - Range is the natural culling key and it is already on the event. Reject on squared distance before doing anything else.
 - Budget it alongside perception, and profile with the maximum monster budget and four players sprinting.
 
+**It has a second consumer, and that changes what counts as a noise**
+
+- [`79_accessibility.md`](79_accessibility.md) builds its visual sound indicators as **a single consumer of this system** rather than as a per-sound feature. That is what makes accessibility complete by construction: a new gameplay sound that raises a noise event gets an indicator for free.
+- The consequence is a rule worth stating here, because it is not obvious: **a sound should raise a noise event if it carries information a player would act on, even when no monster would ever hear it.** A monster's own growl is the clearest case — nothing is listening for it, but a deaf player needs an indicator for it.
+- So the event set is slightly larger than "things monsters hear". Keep the *monster-audible* subset explicit, so perception is not accidentally given access to sounds it should not perceive ([`53_perception_system.md`](53_perception_system.md) consumes only that subset).
+- This is also what enforces the honesty rule from the other direction: an indicator derived from the same events cannot drift from the audio, and neither can perception.
+
 **Make it visible, because it is invisible**
 
 - A debug view drawing each noise event as an expanding sphere with its category and volume, plus a log of recent events. Noise is the least observable system in the game and the one players will most often believe is wrong.
@@ -82,5 +89,7 @@ The reference design's catalogue ([`Assets/docs/detection-and-combat/audible-sou
 - [ ] The ECS-to-MonoBehaviour bridge carries events in both directions.
 - [ ] Consumption is spatially culled; a full monster budget with four sprinting players holds the server frame budget.
 - [ ] No per-event managed allocation occurs in the steady state.
+- [ ] The accessibility indicator system consumes noise events directly; a new gameplay sound gains an indicator with no extra work.
+- [ ] The monster-audible subset of events is explicit, and perception cannot perceive presentation-only events.
 - [ ] A debug view renders noise events with category and volume, and a command logs every noise a chosen player emits.
 - [ ] Occlusion attenuates noise consistently with the audio system's occlusion, so what a player hears matches what a monster hears.

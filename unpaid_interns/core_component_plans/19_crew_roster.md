@@ -44,6 +44,7 @@ This component is small and boring, and almost every other multiplayer component
 
 - `ServerGameSystem.HandleJoinRequests` currently calls `AddPlayerToLeaderboard` on join and `RefreshClientsMap` calls `RemovePlayerFromLeaderboard` on disconnect. These are the two hook points; add roster calls beside them.
 - **Do not remove a player from the roster on disconnect.** `RemovePlayer` deletes the leaderboard row today, which is correct for a deathmatch and fatal here — the roster entry is what a reconnect matches against, and what the disconnect penalty is applied to. Mark them `Disconnected` and keep the row for the life of the run.
+- Once this roster exists, **`LeaderboardManager` should be retired rather than maintained alongside it.** [`70_performance_report.md`](70_performance_report.md) reads per-player stats from here rather than duplicating them, and two replicated per-player tables with two identity conventions is exactly the drift this component exists to prevent. Keep the class as a reference implementation until the roster is working, then delete it.
 - Publish roster changes through the shared EventBus so the HUD roster, action feed, and summary screens react without holding a reference.
 
 **Fix the crew size while here**

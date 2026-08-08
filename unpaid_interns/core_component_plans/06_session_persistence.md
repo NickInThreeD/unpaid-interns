@@ -15,6 +15,8 @@ Saving the run seed is what makes a whole contract reproducible: reload a save, 
 
 That restriction is deliberate. Allowing mid-round saves would let players quit to escape a bad situation and reload, which destroys the extraction tension the entire game rests on. The save point *is* the hub.
 
+**Scope boundary:** this component owns **what** is saved and **when**. The package itself — acquiring it, the bridge that translates game state into its format, the save-format versioning, and the constraints its single-player design imposes — is [`86_savesystem_integration.md`](86_savesystem_integration.md). The two were written in that order and the tension below is resolved there.
+
 ## The Architectural Tension — Read Before Building
 
 Per project convention this must use the shared SaveSystem at `C:\Users\nicky\repo\HiddenObject\Assets\Packages\SaveSystem`. Its README states plainly under "What's Locked In":
