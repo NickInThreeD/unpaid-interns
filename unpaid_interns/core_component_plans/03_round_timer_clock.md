@@ -21,6 +21,7 @@ The clock must be driven by `NetworkTick`, not `Time.deltaTime`. Netcode for Ent
 - Replicate only `RoundStartTick` as a `[GhostField]`. Every other value is derived, which keeps bandwidth at a single value regardless of how often the clock is read. This replicate-one-value-and-derive-the-rest approach is the model [`23_shared_session_state_sync.md`](23_shared_session_state_sync.md) asks every shared-state system to follow; `RoundStartTick` belongs on that file's inventory list.
 - Compute elapsed time as `(currentTick - roundStartTick) * tickInterval`, reading the tick rate from the netcode configuration rather than hardcoding it.
 - Expose `NormalizedTime` as `clamp(elapsed / dayLength, 0, 1)` and a `DisplayTime` that maps normalized time onto the in-fiction workday range.
+- `NormalizedTime` is the input to the round's whole difficulty arc — [`50_spawn_director.md`](50_spawn_director.md) keys its budget curve on it and [`51_difficulty_escalation.md`](51_difficulty_escalation.md) keys monster eligibility and chase persistence on it. That makes it a **server-simulation input, not just a display value**, and it is the reason this clock must derive from `NetworkTick` rather than local time: a clock that drifts on the host drifts the spawn schedule with it.
 
 **Make it configurable**
 

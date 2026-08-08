@@ -39,7 +39,7 @@ That last point is the one that matters most. Crouch is only worth building if s
 - Produce a normalized visibility value that perception systems will consume: full when standing and moving, reduced when crouched, reduced further when crouched and stationary.
 - Put this on the predicted ghost state so the server — which runs monster AI — can read it authoritatively. A client-only visibility value is trivially cheatable.
 - Mind the `ControllerState` serialization warning at lines 59 and 148. Prefer deriving visibility from existing replicated state (movement type plus speed) over adding a new replicated field.
-- Define and document the value's range and meaning now, before any monster reads it.
+- Define and document the value's range and meaning now, before any monster reads it. [`53_perception_system.md`](53_perception_system.md) is the consumer and specifies the shape it expects: a base value reduced by crouching, reduced further by a short stationary dwell, with a floor above zero — plus two terms this component does not own, ambient light level and whether the player is carrying an active light source. Produce the crouch and stillness terms here and let perception compose the rest; do not build a second visibility value there.
 
 **Presentation**
 

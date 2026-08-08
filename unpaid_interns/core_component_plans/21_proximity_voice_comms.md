@@ -42,7 +42,7 @@ Nothing exists. There is no voice package in `Packages/manifest.json`; `com.unit
 
 **Route voice into the noise system**
 
-- Publish a noise event while a player is transmitting on proximity voice, with volume derived from input level and range from the noise config. The Noise Emission System (§6) consumes it exactly like footsteps.
+- Publish a noise event while a player is transmitting on proximity voice, with volume derived from input level and range from the noise config. [`54_noise_emission_system.md`](54_noise_emission_system.md) consumes it exactly like footsteps, using the same position/range/volume shape — voice is simply the noisiest and most variable emitter, spanning a far wider range than any movement sound.
 - **Raise the event on the server** from replicated speaking state, not on the speaking client. A client that suppresses its own noise event would be silently invisible to monsters.
 - Radio transmission should produce noise at the *receiving* end too if the radio plays out loud — a squawking radio in a quiet corridor is a great way to die and a great story.
 - Push-to-talk versus open mic changes this substantially: open mic means background noise constantly attracts monsters. Recommended default is push-to-talk with open mic available in settings, and the noise consequence applying identically to both.
