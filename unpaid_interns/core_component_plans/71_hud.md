@@ -37,6 +37,7 @@ Ammo and reticle become **conditional**, appearing only while a weapon is held, 
 - The clock is the sharpest version of this question. An always-visible countdown converts dread into arithmetic. **Recommended: readable on demand or in specific conditions** — outdoors, or by looking at a wrist device — rather than permanently displayed.
 - Stamina should be a bar, not a number. A player who can see `0.34` will optimise against it; a player watching a bar drain will panic, which is correct.
 - Whatever is hidden must be **discoverable on demand**. Hidden and unavailable are different things, and the second is just missing information.
+- **The one exception is the departure countdown.** Once the round is ending, the remaining window is displayed as an unambiguous number in a reserved region for its whole duration ([`105_departure_and_extraction_resolution.md`](105_departure_and_extraction_resolution.md)). Everywhere else this HUD is encouraged to withhold in order to produce dread; here withholding produces an unfair death, and a player who cannot tell whether they have ten seconds or ninety cannot make the decision the game is asking them to make.
 
 **Keep it cheap and allocation-free**
 

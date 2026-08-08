@@ -21,6 +21,7 @@ The hard part is not loading a scene. It is that **ECS subscenes must finish bak
 - Keep `WaitForAllSubScenesToLoadAsync` — it already polls `SceneSystem.IsSceneLoaded` per `SceneReference` entity per world, which is exactly the check that matters. Do not replace it with a plain scene-load await.
 - Make unload symmetrical and callable mid-session, not only during session teardown.
 - Verify that loading and unloading repeatedly does not leak entities — ECS subscene reload is the most likely source of a slow memory climb over a long run.
+- **Unload is one step of a larger sequence, not the whole of it.** [`106_round_teardown_and_state_reset.md`](106_round_teardown_and_state_reset.md) owns the ordering around it — claims released and ghosts despawned before the scene goes, per-round crew and client state reset after — and owns the leak verification this file asks for. Call it from there rather than having the scene loader decide when the round is over.
 
 **Add a load barrier**
 

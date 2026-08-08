@@ -31,14 +31,16 @@ This component is small and boring, and almost every other multiplayer component
 - Build the roster as a ghost dynamic buffer on a manager singleton, exactly as `LeaderboardManager.PlayerScoreEntry` does — that class is the working reference for a replicated per-player table, including the `_pendingPlayers` queue pattern that defers writes until `GhostGameObject.IsGhostLinked()` is true.
 - Put it on the Run Manager ghost rather than a new one unless it grows large. One fewer manager prefab to register in `ManagerGhostsSpawner.ManagersToSpawn`, and the two are always read together.
 - Per entry: stable player id, display name, current `NetworkId` (or an invalid sentinel when disconnected), a `CrewState` enum, and per-round stats — items banked, value banked, deaths this run.
-- `CrewState` values: `InHub`, `Deployed`, `Extracted`, `Dead`, `Spectating`, `Disconnected`. These are not all mutually exclusive in the abstract, so define precedence explicitly — a player who dies and then disconnects is `Disconnected`, and their death still counts.
+- `CrewState` values: `InHub`, `Deployed`, `Extracted`, `LeftBehind`, `Dead`, `Spectating`, `Disconnected`. These are not all mutually exclusive in the abstract, so define precedence explicitly — a player who dies and then disconnects is `Disconnected`, and their death still counts.
+- `LeftBehind` is **not** the same as `Dead`, and both [`70_performance_report.md`](70_performance_report.md) and [`76_end_of_round_summary.md`](76_end_of_round_summary.md) require the summary to distinguish them — an intern reported as *missing* rather than *deceased* is a different line, a different penalty, and a different feeling. Without this value those two plans cannot be implemented as written.
+- `Extracted` and `LeftBehind` have exactly **one writer**: the resolution pass in [`105_departure_and_extraction_resolution.md`](105_departure_and_extraction_resolution.md), which assigns every intern precisely one outcome on the point-of-no-return tick. Nothing else may set either, and nothing may set them before that tick — an intern standing in the extraction zone at minute three is `Deployed`, not `Extracted`, because they can still walk back out.
 - Every field must be blittable. Use `FixedString64Bytes` for names, as `PlayerScoreEntry` already does.
 
 **Own the transitions**
 
-- Expose one server-only mutator per transition — `MarkDeployed`, `MarkExtracted`, `MarkDead`, `MarkDisconnected`, `MarkReconnected` — rather than a public setter. Guard each with the `Role != MultiplayerRole.Server` check and the `IsGhostLinked()` check, following `LeaderboardManager.AddKill`.
+- Expose one server-only mutator per transition — `MarkDeployed`, `MarkExtracted`, `MarkLeftBehind`, `MarkDead`, `MarkDisconnected`, `MarkReconnected` — rather than a public setter. Guard each with the `Role != MultiplayerRole.Server` check and the `IsGhostLinked()` check, following `LeaderboardManager.AddKill`.
 - Provide the derived queries the rest of the game actually asks: `AnyAliveInField()`, `AllAccountedFor()`, `LiveCrewCount()`. The Day Cycle Controller's total-crew-loss check is one of these; do not let it re-derive the answer from raw entries.
-- Reset per-round state at round start — everyone returns to `InHub` then `Deployed`, dead players come back alive per [`14_death_and_body_system.md`](14_death_and_body_system.md). Per-*run* state (deaths this run, stable id) survives.
+- Reset per-round state at round start — everyone returns to `InHub` then `Deployed`, dead and left-behind players come back alive per [`14_death_and_body_system.md`](14_death_and_body_system.md). Per-*run* state (deaths this run, stable id) survives. The reset happens at step 9 of [`106_round_teardown_and_state_reset.md`](106_round_teardown_and_state_reset.md), after the location has unloaded — restoring a dead intern while their building still exists hands them a live character in a world about to be deleted.
 
 **Wire it to the existing systems**
 
@@ -59,6 +61,8 @@ This component is small and boring, and almost every other multiplayer component
 - [ ] A client joining mid-session receives the full current roster, not an empty or partial one.
 - [ ] Every `CrewState` transition is server-only; a client calling a mutator is rejected with a warning and changes nothing.
 - [ ] State precedence is implemented as documented — a player who dies then disconnects reads `Disconnected` and still counts as a death.
+- [ ] `LeftBehind` exists, is distinct from `Dead`, and appears distinctly on the end-of-round summary.
+- [ ] `Extracted` and `LeftBehind` are written only by the departure resolution pass, and only on the point-of-no-return tick.
 - [ ] A disconnected player's entry is retained, not deleted, for the remainder of the run.
 - [ ] `AnyAliveInField()` is the single source used by the Day Cycle Controller's total-crew-loss check.
 - [ ] Per-round state resets at round start; per-run state does not.

@@ -46,7 +46,8 @@ What is there today is the deathmatch remnant. `Assets/Scripts/Gameplay/UI/Respa
 **Give spectators something to do**
 
 - Optional but high value: let dead players see and ping the map, or use the monitoring/camera system in §9. A dead intern who can still call out "the exit is west of you" is participating.
-- The design's vote-to-leave-early hook lives here too — dead players wanting the round to end is a genuine social tension the game should surface rather than hide. If a vote is implemented, decide whether the dead get one; recommended **no**, since they have already lost their stake and the living carry the risk.
+- The design's vote-to-leave-early hook is now settled, and settled this file's way: [`105_departure_and_extraction_resolution.md`](105_departure_and_extraction_resolution.md) records that **the dead get no vote and no departure control**, for the reason given here — they have lost their stake and the living carry the risk. That component also explains why the reference design's spectator vote is not needed: any living intern can start departure alone, and any living intern can abort it, so a crew is never held hostage by one person's indecision.
+- What the dead *should* get instead is visibility into the decision: who is still alive, where they are, and — once departure starts — the countdown. Watching the timer while your surviving crewmate is three rooms too deep is a far better spectator experience than a vote button.
 
 **Clear it properly**
 
@@ -63,6 +64,7 @@ What is there today is the deathmatch remnant. `Assets/Scripts/Gameplay/UI/Respa
 - [ ] The dead player's character entity is destroyed; monsters do not target it and it occupies no spawn point.
 - [ ] Spectators cannot influence the world — no interaction, no damage, no noise events.
 - [ ] The voice rule for dead players is implemented consistently with the free-cam decision.
+- [ ] Dead players cannot start, abort, or vote on departure, and the departure countdown is visible to them.
 - [ ] The respawn countdown is gone, and the screen shows crew alive, quota progress, and time remaining.
 - [ ] Spectator UI hides in the hub and in the main menu.
 - [ ] All spectators return to playable characters at the start of the next round.

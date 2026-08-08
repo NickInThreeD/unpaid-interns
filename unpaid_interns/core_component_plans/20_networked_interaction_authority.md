@@ -50,7 +50,7 @@ The hard requirement is that a failed prediction must be *cheap and legible*. A 
 
 - **Holder disconnects or dies while holding.** The item must not become permanently claimed by a `NetworkId` that no longer exists. The server clears claims on death and disconnect and drops the item into the world — coordinate with [`14_death_and_body_system.md`](14_death_and_body_system.md) and [`24_mid_round_disconnect_handling.md`](24_mid_round_disconnect_handling.md).
 - **Item destroyed between request and resolution.** Validate existence on the server every time; never assume the ghost the client named still exists.
-- **Claims must not survive a round.** Clear all claims at round teardown so nothing leaks into the next location.
+- **Claims must not survive a round.** Clear all claims at round teardown so nothing leaks into the next location. "At teardown" now has a precise meaning: step 4 of [`106_round_teardown_and_state_reset.md`](106_round_teardown_and_state_reset.md), deliberately ordered *before* the despawn that would otherwise leave a claim pointing at a destroyed ghost, and *after* the settlement pass that still needs to know who held what.
 - Apply the theft rules decided in [`18_pvp_collision_and_friendly_fire.md`](18_pvp_collision_and_friendly_fire.md): world items and corpses are free to anyone, items held by a living player are not. This component is where that policy is enforced.
 
 **Make it observable**

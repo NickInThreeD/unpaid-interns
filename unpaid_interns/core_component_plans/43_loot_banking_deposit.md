@@ -54,6 +54,8 @@ This component is small, and it converts objects into the currency that decides 
 
 - At `Settling`, the Day Cycle Controller enumerates banked items, sums their rolled values, and reports to the Run Manager ([`02_day_cycle_controller.md`](02_day_cycle_controller.md)). This component supplies the enumeration and must guarantee the set is stable at that moment.
 - Reject every banking transition once `Settling` has begun — component 02 already requires that state changes during settlement be held or refused, and a bank landing mid-sum is precisely the corruption it is protecting against.
+- **Banking stays open for the whole of `Departing`, and closes at the point of no return.** `Departing` and `Settling` are not adjacent: [`105_departure_and_extraction_resolution.md`](105_departure_and_extraction_resolution.md) puts an announced grace window between them, and that window is the sprint back with a full inventory that the entire round has been building toward. Reading the rule above as "banking closes when the lever is pulled" would delete the best moment in the game. The closing edge is one specific tick, it is fired by that component, and everything after it is accounting.
+- An item released a tick before the point of no return and still settling when it fires is the case that will be got wrong. Decide it explicitly — recommended: evaluate the backstop pass *after* physics has settled but *before* the enumeration, so a genuinely-thrown-in item counts and a still-airborne one does not.
 - Unbanked items are destroyed with the location, per the design's loss condition. Verify none survive into the next round; a leaked banked flag on a pooled item instance would credit the next round for last round's scrap ([`38_item_ghost_networked_item_state.md`](38_item_ghost_networked_item_state.md)).
 - Per-player attribution — who banked what — feeds the crew roster's per-round stats and the end-of-round summary ([`19_crew_roster.md`](19_crew_roster.md)). Record it at bank time; it cannot be reconstructed afterwards.
 
@@ -79,7 +81,9 @@ This component is small, and it converts objects into the currency that decides 
 - [ ] Equipment deposited in the zone is retained for the next round and pays nothing; buying and banking an item is never a net gain.
 - [ ] `Banked` and `Retained` are distinct states in the data.
 - [ ] Every bank records which player was responsible, and per-player banked value matches the settlement total.
+- [ ] Banking works normally throughout the departure grace window and is refused only from the point of no return onward.
 - [ ] Banking transitions are refused once settlement begins, and the settled total is unaffected by a bank attempted during it.
+- [ ] An item thrown into the zone in the last second of the grace window resolves deterministically and identically on host and client.
 - [ ] Unbanked items are destroyed at round end and no banked flag survives on a pooled instance into the next round.
 - [ ] A development audit at settlement confirms the summed item values equal the displayed running total.
 - [ ] Every bank and unbank is logged with tick, item id, value, and player.

@@ -28,6 +28,8 @@ The design specifies the failure state as collective: *"they all die or are all 
 - Two defensible answers: the run continues (they lost the day's unbanked loot and a day of the deadline, which is punishment enough), or the run ends immediately.
 - The first preserves the quota as the single failure condition and makes bad rounds recoverable; the second makes every round lethal. **Pick one and record it** — leaving this implicit will produce inconsistent behavior between the Day Cycle Controller and this component.
 - Whichever is chosen, it must be keyed on the Crew Roster's *dead* count, not on "nobody is in the field" ([`19_crew_roster.md`](19_crew_roster.md)). A round that ends because everyone disconnected is not a crew wipe, and treating it as one would let a network outage end a run — the exact failure [`24_mid_round_disconnect_handling.md`](24_mid_round_disconnect_handling.md) exists to prevent.
+- **Decide whether `LeftBehind` counts toward the wipe.** [`105_departure_and_extraction_resolution.md`](105_departure_and_extraction_resolution.md) makes being left behind a fourth outcome, distinct from dead and from disconnected, and recommends it be lethal. If it is lethal, it counts; if it is not, a round can end with every intern left behind and nobody dead, and this component must not read that as a wipe. Both files must state the same answer.
+- Note that a wipe does not zero the round: loot banked before it happened still pays out ([`02_day_cycle_controller.md`](02_day_cycle_controller.md)). A crew can lose everyone and still clear quota, which is a legitimately grim outcome the premise is well suited to.
 
 **Build the ending**
 

@@ -36,7 +36,8 @@ The report is also where the game's tone does its heaviest lifting. `GAME_DESIGN
 
 - Per-player notes are where the comedy lives and where individual recognition belongs. Derive them from data the game already collects: most valuable single item, most damage taken and survived, furthest from the extraction zone, first to die, banked nothing at all.
 - Notes must be **observations, not rankings**. "Sustained the most injuries" is funny; "3rd place" is a scoreboard, and a scoreboard in a co-op game creates exactly the blame dynamic [`66_bonus_and_penalty_rules.md`](66_bonus_and_penalty_rules.md) is trying to avoid.
-- Report survival status per intern — alive, deceased, or left behind — which the roster already distinguishes. A player who disconnected reads as disconnected, not as dead.
+- Report survival status per intern — extracted, deceased, left behind, or disconnected — which the roster distinguishes once `LeftBehind` is added ([`19_crew_roster.md`](19_crew_roster.md), written by [`105_departure_and_extraction_resolution.md`](105_departure_and_extraction_resolution.md)). A player who disconnected reads as disconnected, not as dead.
+- The map's total spawned value ([`39_loot_spawner.md`](39_loot_spawner.md)) that the grade divides by must be captured during settlement, before teardown destroys the items — step 3 of [`106_round_teardown_and_state_reset.md`](106_round_teardown_and_state_reset.md) exists to guarantee that ordering, and without it this grade cannot be computed at all.
 
 **Reuse the UI, adapt the semantics**
 

@@ -44,10 +44,13 @@ What exists today is a spawn point and nothing more. `SpawnPointAuthoring` bakes
 
 **Own the departure control**
 
-- The voluntary-departure end condition in [`02_day_cycle_controller.md`](02_day_cycle_controller.md) is an interaction on an object in this zone. It is the most consequential button in the game and needs to be treated like one.
+- The voluntary-departure end condition is an interaction on an object in this zone. It is the most consequential button in the game and needs to be treated like one.
 - Server-authoritative: the client sends an interaction request, the server validates phase and position and starts the departure sequence. Never a client-side trigger.
-- The unanimity question is component 02's to answer, but the *feedback* is this component's: whoever is inside the building must be told loudly and immediately that departure has begun, with time to run. A ship that leaves silently is a bug report every session.
-- Make the control unmistakable and hard to trigger by accident. A player fleeing a monster who reflexively presses interact and ends the round for everyone will not be forgiven.
+- **The rules that control fires are [`105_departure_and_extraction_resolution.md`](105_departure_and_extraction_resolution.md)'s**, not this file's: any living intern may start it from inside the zone with a hold-to-confirm, any living intern may abort it before the point of no return, and the dead have no vote. This component supplies the object, the placement, and the affordance; that component supplies the meaning. An earlier draft of this file passed the question to [`02_day_cycle_controller.md`](02_day_cycle_controller.md), which passed it back — it now has an owner.
+- The *feedback* is this component's: whoever is inside the building must be told loudly and immediately that departure has begun, with time to run. A ship that leaves silently is a bug report every session.
+- Make the control unmistakable and hard to trigger by accident. A player fleeing a monster who reflexively presses interact and ends the round for everyone will not be forgiven — the hold-to-confirm exists for exactly this, and the abort exists for when it happens anyway.
+- The same control is the abort. One object, two states, so a crew that changes its mind does not go looking for a second lever.
+- The zone's inside test has a third consumer beyond loot and bodies: **the departure resolution pass** tests every living intern against it on the point-of-no-return tick to decide who extracted and who was left behind. Do not add a separate "is this player aboard" flag; a trigger-stay boolean fails here for the same reasons it fails for items.
 
 **Serve the systems that read it**
 
@@ -72,6 +75,8 @@ What exists today is a spawn point and nothing more. `SpawnPointAuthoring` bakes
 - [ ] The spawn overlap buffer is sized to the configured crew size, not to 32.
 - [ ] A generated interior always places exactly one extraction zone, reachable from every room.
 - [ ] The departure control is server-validated, cannot be triggered from outside the zone, and cannot be triggered by accident.
+- [ ] The same control aborts a departure in progress, and the abort is refused after the point of no return.
+- [ ] The zone's inside test is what decides who extracted and who was left behind; no second aboard-flag exists.
 - [ ] Beginning departure is announced immediately and clearly to every player, including those deep inside the building.
 - [ ] The zone is scannable at long range and through geometry.
 - [ ] Depositing a body registers recovery using the same inside test as loot.

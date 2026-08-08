@@ -42,6 +42,7 @@ Each of those makes an existing mechanic playable. Resist adding gear that only 
 - Gear left in the extraction zone at round end comes home and is available next round. Gear left in the field is lost with the rest of the round's unbanked contents.
 - Gear stored in the hub persists across rounds and through a save ([`06_session_persistence.md`](06_session_persistence.md)); the Storage / Hub Inventory component in §5 owns where it lives between deployments.
 - Decide what happens to gear on total crew loss. Recommended: **hub storage survives, everything taken into the field is lost** — it keeps the disaster meaningful without erasing a run's accumulated capability in one bad round.
+- Read that rule precisely: it covers gear *carried by interns*. Gear left `Retained` in the extraction zone has already come home and survives, exactly as banked scrap already sold does ([`105_departure_and_extraction_resolution.md`](105_departure_and_extraction_resolution.md) holds the full forfeiture table, and [`02_day_cycle_controller.md`](02_day_cycle_controller.md) requires all three end conditions to settle identically). The looser reading — that a wipe voids everything in the zone — would mean a crew's last act of banking counted for nothing, which is not what banking means.
 
 **Make charge the limiter, not cooldowns**
 

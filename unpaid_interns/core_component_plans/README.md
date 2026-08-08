@@ -4,6 +4,8 @@ One plan per component in [`core_components.md`](../core_components.md). Every c
 
 **[MVP]** marks the minimum set for a first playable loop. Build order guidance is in [`core_components.md`](../core_components.md) §15.
 
+**Numbers are allocation order, not section order.** Components 105 and 106 belong to §1 and are listed there, but they were added after 01–104 and keep the numbers they were allocated. Files are never renumbered — every plan cross-references its neighbours by filename, and a renumber would break links across the whole set for no gain.
+
 ## §1. Game Loop & Session State
 
 | # | Component | Status | MVP |
@@ -16,6 +18,8 @@ One plan per component in [`core_components.md`](../core_components.md). Every c
 | 06 | [Session Persistence](06_session_persistence.md) | ❌ Not started |  |
 | 07 | [Game Over / Win Resolution](07_game_over_win_resolution.md) | ❌ Not started | ✓ |
 | 08 | [Late Join / Rejoin Policy](08_late_join_rejoin_policy.md) | ⚠️ Partial — plumbing exists, policy does not | ✓ |
+| 105 | [Departure & Extraction Resolution](105_departure_and_extraction_resolution.md) | ❌ Not started — core loop step 5 had no owner | ✓ |
+| 106 | [Round Teardown & State Reset](106_round_teardown_and_state_reset.md) | ❌ Not started — core loop step 7 had no owner | ✓ |
 
 ## §2. Player Character
 

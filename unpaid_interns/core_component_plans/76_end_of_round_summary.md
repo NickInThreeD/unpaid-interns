@@ -26,7 +26,8 @@ It also carries a hard correctness requirement that most UI does not: **every fi
 
 **Report survival honestly and distinctly**
 
-- Per intern: survived, died and was recovered, died and was left behind, disconnected. The crew roster distinguishes all four ([`19_crew_roster.md`](19_crew_roster.md)) and collapsing them loses information the crew cares about — "left behind" is a different feeling from "recovered", and it is a different number.
+- Per intern, five outcomes rather than four: **extracted**, **died and body recovered**, **died and body not recovered**, **left behind**, **disconnected**. The first three and the fifth come from the crew roster's `CrewState` plus the body's recovery flag; the fourth is `LeftBehind`, which [`19_crew_roster.md`](19_crew_roster.md) now carries specifically so this screen can be written ([`105_departure_and_extraction_resolution.md`](105_departure_and_extraction_resolution.md) is its only writer).
+- Keep *left behind* and *died* visibly distinct. An intern who never made it back is reported as **missing**, not deceased — a different line, a different penalty, and the register the premise wants: the employer does not mourn, it notes an unrecovered asset.
 - A disconnected player must read as **disconnected, not dead**. [`24_mid_round_disconnect_handling.md`](24_mid_round_disconnect_handling.md) decides they incur no death penalty, and a summary that lists them among the dead contradicts the ledger sitting directly above it.
 - Per-player banked value comes from the bank-time attribution [`43_loot_banking_deposit.md`](43_loot_banking_deposit.md) records. It cannot be reconstructed after the fact, so if that attribution was skipped, this section cannot exist.
 
@@ -55,7 +56,8 @@ It also carries a hard correctness requirement that most UI does not: **every fi
 - [ ] The haul is itemised or grouped, with per-item values shown.
 - [ ] Each penalty names its cause and the intern it relates to.
 - [ ] The screen ends with the new balance, remaining shortfall, and days remaining.
-- [ ] Survival status distinguishes survived, recovered death, left-behind death, and disconnected.
+- [ ] Survival status distinguishes extracted, recovered death, unrecovered death, left behind, and disconnected.
+- [ ] A left-behind intern reads as missing rather than deceased.
 - [ ] A disconnected player is never listed as dead, consistent with the penalty ledger.
 - [ ] Per-player banked value is shown and matches the settlement total.
 - [ ] The summary appears after settlement and before the hub becomes playable.

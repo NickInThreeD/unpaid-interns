@@ -28,6 +28,7 @@ The mechanism is a **power budget**, spent on periodic spawn cycles, weighted by
 - Start it low enough that the first minute is quiet. A crew that meets something in the first thirty seconds never establishes the false confidence the round needs to take away from them.
 - Ramp it so that lingering is always worse than leaving — that is the design's stated pressure, and it means the curve must keep rising, never plateau at a level the crew can settle into.
 - Allow a per-location multiplier so a hard destination is hard from the start rather than only at the end.
+- **Keep spending through the departure window.** [`105_departure_and_extraction_resolution.md`](105_departure_and_extraction_resolution.md) puts an announced grace window between the decision to leave and the point of no return, and the curve is at its peak there. Stopping the director when the lever is pulled turns the crew's most dangerous run of the round into a walk through an empty building. The director stops at the point of no return, with the rest of the round systems ([`106_round_teardown_and_state_reset.md`](106_round_teardown_and_state_reset.md), step 7).
 
 **Spawn where it is fair**
 

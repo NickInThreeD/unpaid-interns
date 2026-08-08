@@ -44,7 +44,7 @@ The rule that keeps this honest: **an item exists in exactly one place at a time
 - Storage contents are run state: they belong on the save alongside credits and quota ([`06_session_persistence.md`](06_session_persistence.md)), and they are wiped with the run on failure ([`07_game_over_win_resolution.md`](07_game_over_win_resolution.md)).
 - Serialise as a list of `(itemId, rolledValue, instanceState)` — never as ghost references, which are meaningless across sessions. Instance state covers ammo and charge, which must survive a save or a player will lose a full flashlight to a reload.
 - Restore on the server before any client connects, so replication carries the correct contents outward rather than overwriting them ([`06_session_persistence.md`](06_session_persistence.md) already requires this ordering for the Run Manager; storage rides the same path).
-- On total crew loss, apply the rule recorded in [`44_tool_and_equipment_items.md`](44_tool_and_equipment_items.md): **hub storage survives, everything carried into the field is lost.** Both files must agree, and this is the one that owns the storage half.
+- On total crew loss, apply the rule recorded in [`44_tool_and_equipment_items.md`](44_tool_and_equipment_items.md): **hub storage survives, everything carried into the field is lost.** Both files must agree, and this is the one that owns the storage half. *Carried* is the operative word — gear `Retained` in the extraction zone arrives in storage even on a wipe, per the forfeiture table in [`105_departure_and_extraction_resolution.md`](105_departure_and_extraction_resolution.md).
 
 **Answer the questions the crew will ask**
 

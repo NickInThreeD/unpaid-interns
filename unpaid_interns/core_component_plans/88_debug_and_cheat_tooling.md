@@ -36,7 +36,9 @@ Collected from across the component plans, so the console is specified rather th
 - **Items and gear** — spawn an item by id, force a purchase, grant or revoke an upgrade, clear storage ([`67_store_purchasing.md`](67_store_purchasing.md), [`68_upgrades.md`](68_upgrades.md), [`46_storage_hub_inventory.md`](46_storage_hub_inventory.md)).
 - **Player** — teleport, god mode, set health, set stamina, set carry weight, kill self, force respawn ([`12_carry_weight.md`](12_carry_weight.md) needs a debug weight value before the inventory exists).
 - **World** — force a weather condition, cut and restore power, disable a hazard ([`35_environmental_conditions_weather.md`](35_environmental_conditions_weather.md), [`36_lighting_and_power_grid.md`](36_lighting_and_power_grid.md)).
-- **State inspection** — dump every shared-state value with the current `NetworkTick` on any machine ([`23_shared_session_state_sync.md`](23_shared_session_state_sync.md)).
+- **Departure** — start departure, abort it, set the grace window, skip to the point of no return, force a named intern's outcome ([`105_departure_and_extraction_resolution.md`](105_departure_and_extraction_resolution.md)). Every end-of-round system is reached through this one sequence, so without these commands settlement, penalties, the summary, the report, and teardown are each a full round away from their nearest test.
+- **State inspection** — dump every shared-state value with the current `NetworkTick` on any machine ([`23_shared_session_state_sync.md`](23_shared_session_state_sync.md)), and dump the teardown baseline comparison ([`106_round_teardown_and_state_reset.md`](106_round_teardown_and_state_reset.md)).
+- **Soak** — run N unattended round cycles composed from the commands above, which is the harness [`106_round_teardown_and_state_reset.md`](106_round_teardown_and_state_reset.md) needs to prove the loop repeats. It is the highest-value thing this console produces and it costs nothing beyond sequencing commands that already exist.
 
 **Build the overlays, because several systems are invisible by construction**
 

@@ -69,6 +69,8 @@ The **multiplayer foundation, movement, and presentation shell are done and soli
 - ❌ **Session Persistence** — Saves run state (day, money, quota, gear, unlocks) so a contract survives quitting. Route through the shared SaveSystem package (§12).
 - ❌ **Game Over / Win Resolution [MVP]** — Evaluates quota at the deadline: continue to the next cycle, or terminate the crew and wipe the run.
 - ⚠️ **Late Join / Rejoin Policy** — `ServerGameSystem.HandleJoinRequests` spawns anyone who connects, at any time. A round-based game needs a rule: join as spectator mid-round, join at the hub between rounds, or lock the session once deployed.
+- ❌ **Departure & Extraction Resolution [MVP]** — Step 5 of the core loop — *deciding when to leave* — and the only step that had no owner. Who may start the departure and whether it can be aborted; the announced grace window in which the crew can still run for it and still bank; the point of no return that freezes outcomes; and what each intern is at that instant — extracted, left behind, dead, or disconnected. Also the rule for what is forfeited, which the design states for unbanked loot and leaves undefined for everything else. Five existing components reference this mechanic and none implements it. See [`105_departure_and_extraction_resolution.md`](core_component_plans/105_departure_and_extraction_resolution.md).
+- ❌ **Round Teardown & State Reset [MVP]** — Step 7 of the core loop — *repeat* — as an owned, ordered sequence rather than nineteen independent cleanup implementations. Nothing in this codebase has ever run a second round: `ScenesLoader` loads one hardcoded scene once, and unload exists only for full session teardown. Nineteen plans already carry a "nothing leaks into the next round" criterion with no shared ordering, no registration mechanism, and no leak detection. See [`106_round_teardown_and_state_reset.md`](core_component_plans/106_round_teardown_and_state_reset.md).
 
 ## 2. Player Character
 
@@ -237,8 +239,8 @@ These are the same two items listed in §11 and are planned there — see [`85_e
 The multiplayer foundation is already done, which reorders the plan substantially from a greenfield project.
 
 1. **Player verbs** — Wire `Interact`, `Crouch`, and `Sprint` through `PlayerInput` → `ClientInputReaderSystem` → `FirstPersonController`; add stamina and carry weight to the predicted ghost state. Everything downstream depends on these.
-2. **Items and extraction** — Item data model → item ghosts → interaction/pickup → inventory → extraction zone → loot banking. At this point there is a loop, on a hand-built map, with no threats.
-3. **Round and economy** — Run Manager → day cycle and clock → selling → quota → game over → end-of-round summary. This is a complete, playable, monsterless game.
+2. **Items and extraction** — Item data model → item ghosts → interaction/pickup → inventory → extraction zone → loot banking → **departure and extraction resolution**. At this point there is a loop, on a hand-built map, with no threats. Departure belongs in this step rather than later: without it there is no way to *end* a round, so nothing downstream can be tested.
+3. **Round and economy** — Run Manager → day cycle and clock → **round teardown** → selling → quota → game over → end-of-round summary. This is a complete, playable, monsterless game. Teardown belongs here, before content accumulates: every system added after it is one more thing to retrofit into a sequence that already works.
 4. **Death rework** — Replace auto-respawn with permanent-for-the-round death, bodies, spectating, and death penalties. Do this before monsters, or monsters cannot be tuned meaningfully.
 5. **Threat layer** — Noise emission → perception → runtime NavMesh → chase/pathfinding → one monster → spawn director. Runtime NavMesh baking may need to come first if procedural generation lands before this step.
 6. **Procedural generation** — Room modules → deterministic seeded generator → runtime NavMesh bake → per-round location load/unload.
@@ -247,11 +249,17 @@ The multiplayer foundation is already done, which reorders the plan substantiall
 
 ## 16. Open Questions
 
-- **Is the round on a hard timer, or purely player-ended?** `GAME_DESIGN.md` says players choose when to leave; a hard clock changes the Day Cycle Controller and the entire pacing model. Given the shared-clock requirement in multiplayer, a hard outer limit with player-chosen early exit is likely the practical answer.
-- **What is the target crew size?** `GameManager.MaxPlayer` is currently 32 — a deathmatch number. A co-op extraction game is usually 4. This affects monster power budgets, map size, and quota scaling.
-- **Is the quota per-cycle-escalating or a single fixed target?** Determines whether the Quota System needs a growth curve.
-- **Are locations chosen or assigned?** Determines whether Location Selection is a strategy system or a single random call.
-- **Do weapons survive as a pillar, or become rare tools?** A full predicted weapon stack already exists. Keeping combat prominent pulls the game toward a shooter; making weapons rare and defensive preserves the horror. This decides how much of §5 is reuse versus removal.
-- **How much should be predicted versus server-only?** Movement is predicted today. Pickups probably should be predicted for responsiveness; monsters almost certainly should not. Deciding this early prevents costly rework.
-- **Can interns hurt each other?** Friendly fire and player-vs-player collision are unstated. Both are strong emergent-comedy generators and strong griefing vectors, and the answer shapes weapon design, doorway width, and chase dynamics.
-- **What happens when someone disconnects mid-round?** Their loot, their body, their share of the penalty, and whether they can rejoin. One dropped connection can currently cost a shared quota with no defined rule.
+Each question below now has an **owner** — the plan file where the decision is argued and where the answer must be recorded when it is taken. A question is only closed once that file states the decision as a fact rather than as a recommendation; several already carry a strong recommendation and are marked as such.
+
+| Question | Owner | Status |
+| --- | --- | --- |
+| Is the round on a hard timer, or purely player-ended? | [`02`](core_component_plans/02_day_cycle_controller.md), [`105`](core_component_plans/105_departure_and_extraction_resolution.md) | **Answered.** A hard outer limit with player-chosen early exit; both triggers enter the same departure sequence |
+| What is the target crew size? | [`19`](core_component_plans/19_crew_roster.md) | Recommended **4**; `GameManager.MaxPlayer = 32` must be replaced by one configured value |
+| Is the quota per-cycle-escalating or a fixed target? | [`64`](core_component_plans/64_quota_system.md) | **Answered.** Escalating, with the curve as data |
+| Are locations chosen or assigned? | [`27`](core_component_plans/27_location_selection_assignment.md) | Recommended **chosen**, with quota escalation supplying the pressure — a deliberate reversal of the elevator pitch's wording |
+| Do weapons survive as a pillar, or become rare tools? | [`45`](core_component_plans/45_weapons_as_tools.md) | Recommended **rare defensive tools**; the weapon is currently baked into the player prefab, which is the real work |
+| How much is predicted versus server-only? | [`20`](core_component_plans/20_networked_interaction_authority.md), [`49`](core_component_plans/49_monster_ghost_and_replication.md) | **Answered.** Movement, stamina, and pickups predicted; monsters interpolated, never predicted |
+| Can interns hurt each other? | [`18`](core_component_plans/18_pvp_collision_and_friendly_fire.md) | Recommended **soft collision, heavily reduced friendly fire**; note the inherited code has already answered *yes, at full damage* |
+| What happens when someone disconnects mid-round? | [`24`](core_component_plans/24_mid_round_disconnect_handling.md) | Recommended **no death penalty, loot drops, grace window**; [`25`](core_component_plans/25_reconnection.md) owns the return path |
+| What happens to an intern still inside when the round ends? | [`105`](core_component_plans/105_departure_and_extraction_resolution.md) | Recommended **lost with the location**, reported as missing rather than deceased; requires a `LeftBehind` crew state |
+| Does a total crew loss forfeit loot already banked? | [`105`](core_component_plans/105_departure_and_extraction_resolution.md) | **Answered.** No — anything resting in the extraction zone has already arrived; only what is on the interns is lost |

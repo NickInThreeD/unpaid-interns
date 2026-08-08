@@ -59,7 +59,7 @@ Gameplay physics is built-in PhysX, and in a host process the server world and t
 **Pool, do not churn**
 
 - A loot-dense location spawns and destroys hundreds of objects per round. `SoundGameObjectPool` establishes the pooling pattern in this project; apply the same approach to item prefab instances so a deploy does not allocate its way through a frame budget.
-- Watch for pooled instances retaining state between rounds — a pooled item that keeps last round's `Banked` flag is a credit duplication bug.
+- Watch for pooled instances retaining state between rounds — a pooled item that keeps last round's `Banked` flag is a credit duplication bug. **Reset on release, not on acquire**: an instance that is cleaned only when it is next handed out is a dirty instance for however long it sits in the pool, and it will be inspected in that state by exactly the leak check that is supposed to catch it ([`106_round_teardown_and_state_reset.md`](106_round_teardown_and_state_reset.md)).
 
 **Make it debuggable**
 

@@ -31,6 +31,7 @@ The clock must be driven by `NetworkTick`, not `Time.deltaTime`. Netcode for Ent
 **Expose phase boundaries**
 
 - Define named thresholds on the normalized range — morning, midday, dusk, final warning — as data, not hardcoded constants.
+- The **final warning** threshold is not decoration: it is the point at which the crew is told the clock will force a departure, and it must sit far enough before the limit that crossing the building is still possible. [`105_departure_and_extraction_resolution.md`](105_departure_and_extraction_resolution.md) sizes the grace window the same way and against the same measurement; keep the two numbers in one config asset so they cannot be tuned apart.
 - Fire a one-shot event on each boundary crossing through the shared EventBus, so audio stingers and lighting changes hook in without polling.
 - Guard boundary firing against being triggered twice if the tick jumps, and against firing on a client that joined after the boundary passed.
 
@@ -53,5 +54,6 @@ The clock must be driven by `NetworkTick`, not `Time.deltaTime`. Netcode for Ent
 - [ ] Each phase boundary event fires exactly once per round, on every client.
 - [ ] A client joining after a boundary has passed does not retroactively fire that boundary's event.
 - [ ] The clock stops advancing when the round is not in an active phase, and does not advance in the hub.
+- [ ] The clock **does** keep advancing during `Departing`, so the escape window is not a lull.
 - [ ] Debug commands to set, freeze, and accelerate time all work in a build.
 - [ ] The HUD clock matches the underlying normalized time and updates without allocating per frame.
